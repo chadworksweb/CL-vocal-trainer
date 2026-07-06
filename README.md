@@ -22,4 +22,5 @@ Early MVP. Best results come from a clean, dry, solo vocal stem. Latency calibra
 
 ## Docs
 
-Build binder lives in [`plans and docs/`](plans%20and%20docs/) (prefix `CLVT-`).
+Build binder (prefix `CLVT-`) lives on Dropbox, separate from this repo:
+`Dropbox/Chad Lewine/CL Vocal Trainer/plans and docs/`.
