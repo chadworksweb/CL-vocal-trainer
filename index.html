@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voice Trainer</title>
+<style>
+  :root {
+    --bg: #0d1017;
+    --panel: #161b26;
+    --panel2: #1e2532;
+    --line: #2a3242;
+    --text: #e6ecf5;
+    --dim: #8b97ab;
+    --accent: #4f9dff;
+    --target: #3b6ef0;
+    --good: #35d07f;
+    --ok: #ffd23f;
+    --bad: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  header {
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  .group { display: flex; align-items: center; gap: 8px; }
+  .group label.cap { color: var(--dim); font-size: 12px; }
+  button {
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
+  input[type=file] { display: none; }
+  .filebtn { display: inline-flex; align-items: center; gap: 6px; }
+  .filebtn .name { color: var(--dim); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  input[type=range] { width: 90px; }
+  .spacer { flex: 1; }
+  .readout {
+    display: flex; gap: 18px; align-items: baseline;
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 14px;
+  }
+  .readout .big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .readout .lbl { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .cents { font-variant-numeric: tabular-nums; }
+  #stage { flex: 1; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(13,16,23,.82); text-align: center; padding: 24px;
+  }
+  #overlay .card { max-width: 520px; }
+  #overlay h2 { margin: 0 0 10px; font-size: 18px; }
+  #overlay p { color: var(--dim); margin: 6px 0; }
+  #overlay ol { color: var(--dim); text-align: left; margin: 14px auto; max-width: 400px; line-height: 1.7; }
+  .progress { margin-top: 14px; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: none; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+  .hint { font-size: 12px; color: var(--dim); }
+  .dot-swatch { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Voice<span>Trainer</span></h1>
+
+  <div class="group">
+    <label class="filebtn" title="Vocal stem WAV used to build the target pitch line">
+      <input type="file" id="vocalFile" accept="audio/*" />
+      <button onclick="this.previousElementSibling.click()">Vocal stem</button>
+      <span class="name" id="vocalName">none</span>
+    </label>
+  </div>
+
+  <div class="group">
+    <label class="filebtn" title="Optional backing track to play while you sing">
+      <input type="file" id="backFile" accept="audio/*" />
+      <button onclick="this.previousElementSibling.click()">Backing (opt)</button>
+      <span class="name" id="backName">plays vocal</span>
+    </label>
+  </div>
+
+  <div class="group">
+    <label class="cap">Guide</label>
+    <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="readout">
+    <div>
+      <div class="lbl">You</div>
+      <div class="big" id="noteOut">--</div>
+    </div>
+    <div>
+      <div class="lbl">Cents</div>
+      <div class="big cents" id="centsOut">--</div>
+    </div>
+    <div>
+      <div class="lbl">On pitch</div>
+      <div class="big" id="scoreOut">--</div>
+    </div>
+  </div>
+</header>
+
+<div class="group" style="padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);">
+  <button id="micBtn">Enable mic</button>
+  <button id="playBtn" class="primary" disabled>Play</button>
+  <button id="stopBtn" disabled>Stop</button>
+  <span class="hint" id="statusHint">Load a vocal stem to begin.</span>
+  <div class="spacer"></div>
+  <span class="hint"><span class="dot-swatch" style="background:var(--target)"></span>target &nbsp; <span class="dot-swatch" style="background:var(--good)"></span>your pitch</span>
+</div>
+
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="overlay">
+    <div class="card">
+      <h2>Sing along, hit the line.</h2>
+      <p>A local pitch trainer, like Let's Sing, driven by your own songs.</p>
+      <ol>
+        <li>Export a <b>vocal stem</b> (WAV) from Ableton and load it above.</li>
+        <li>Optionally load a <b>backing track</b> to sing over (else the vocal plays as a guide, turn Guide down to test yourself).</li>
+        <li>Click <b>Enable mic</b>, then <b>Play</b>.</li>
+      </ol>
+      <p class="hint">The blue ribbon is the target melody. Your green dot should ride on top of it.</p>
+      <div class="progress" id="prog"><div id="progBar"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ---------- Audio context ----------
+const AC = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+function getCtx(){ if(!ctx) ctx = new AC(); return ctx; }
+
+// ---------- Pitch detection (autocorrelation, lag-restricted) ----------
+// Returns frequency in Hz, or -1 if no confident pitch.
+function detectPitch(buf, sampleRate, minFreq, maxFreq){
+  const SIZE = buf.length;
+  // RMS gate
+  let rms = 0;
+  for (let i=0;i<SIZE;i++){ const v=buf[i]; rms += v*v; }
+  rms = Math.sqrt(rms/SIZE);
+  if (rms < 0.008) return -1;
+
+  const maxLag = Math.min(SIZE-1, Math.floor(sampleRate/minFreq));
+  const minLag = Math.max(2, Math.floor(sampleRate/maxFreq));
+
+  let bestLag = -1, bestCorr = 0;
+  let prevCorr = 0, rising = false;
+  const norm = [];
+  // energy at lag 0
+  let c0 = 0;
+  for (let i=0;i<SIZE;i++) c0 += buf[i]*buf[i];
+  if (c0 === 0) return -1;
+
+  for (let lag=minLag; lag<=maxLag; lag++){
+    let c = 0;
+    const lim = SIZE - lag;
+    for (let i=0;i<lim;i++) c += buf[i]*buf[i+lag];
+    const nc = c / c0; // rough normalized correlation
+    norm[lag] = nc;
+    // track the first strong local peak to reduce octave-up errors
+    if (nc > bestCorr){ bestCorr = nc; bestLag = lag; }
+  }
+
+  if (bestLag < 0 || bestCorr < 0.35) return -1;
+
+  // Parabolic interpolation around bestLag for sub-sample accuracy
+  const y0 = norm[bestLag-1] ?? bestCorr;
+  const y1 = bestCorr;
+  const y2 = norm[bestLag+1] ?? bestCorr;
+  let shift = 0;
+  const denom = (y0 - 2*y1 + y2);
+  if (denom !== 0) shift = 0.5*(y0 - y2)/denom;
+  const trueLag = bestLag + shift;
+  return sampleRate / trueLag;
+}
+
+// ---------- Note helpers ----------
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+function freqToMidi(f){ return 69 + 12*Math.log2(f/440); }
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function noteName(midi){
+  const m = Math.round(midi);
+  return NOTE_NAMES[((m%12)+12)%12] + (Math.floor(m/12)-1);
+}
+
+// ---------- State ----------
+let vocalBuffer = null;    // decoded AudioBuffer for pitch extraction (+ fallback playback)
+let backingBuffer = null;  // decoded AudioBuffer for playback
+let targetCurve = [];      // [{t, midi}] extracted target pitch line
+let noteLo = 48, noteHi = 72; // display range (MIDI)
+
+let micStream = null, micSource = null, micAnalyser = null, micBuf = null, micRate = 44100;
+
+let playing = false;
+let playStartCtxTime = 0;   // ctx.currentTime when playback started
+let playSource = null, playGain = null;
+let songDuration = 0;
+
+let hitFrames = 0, totalFrames = 0;
+let yourTrail = []; // [{t, midi}] your recent pitch for drawing
+
+// ---------- File loading ----------
+async function decodeFile(file){
+  const arr = await file.arrayBuffer();
+  return await getCtx().decodeAudioData(arr);
+}
+
+document.getElementById('vocalFile').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  document.getElementById('vocalName').textContent = f.name;
+  setStatus('Decoding vocal stem...');
+  vocalBuffer = await decodeFile(f);
+  await extractTarget(vocalBuffer);
+  document.getElementById('playBtn').disabled = false;
+  setStatus('Target line ready. Enable mic, then Play.');
+});
+
+document.getElementById('backFile').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  document.getElementById('backName').textContent = f.name;
+  setStatus('Decoding backing track...');
+  backingBuffer = await decodeFile(f);
+  setStatus('Backing loaded.');
+});
+
+function setStatus(t){ document.getElementById('statusHint').textContent = t; }
+
+// ---------- Target extraction (offline, chunked) ----------
+async function extractTarget(buffer){
+  const prog = document.getElementById('prog');
+  const bar = document.getElementById('progBar');
+  prog.style.display = 'block';
+
+  // Downsample channel 0 to ~16 kHz for speed.
+  const srcRate = buffer.sampleRate;
+  const targetRate = 16000;
+  const ratio = srcRate / targetRate;
+  const src = buffer.getChannelData(0);
+  const dsLen = Math.floor(src.length / ratio);
+  const ds = new Float32Array(dsLen);
+  for (let i=0;i<dsLen;i++){
+    const start = Math.floor(i*ratio), end = Math.floor((i+1)*ratio);
+    let s=0, n=0;
+    for (let j=start;j<end && j<src.length;j++){ s+=src[j]; n++; }
+    ds[i] = n? s/n : 0;
+  }
+
+  const win = 1600;          // 100 ms window
+  const hop = 400;           // 25 ms hop
+  const frames = Math.max(1, Math.floor((dsLen - win)/hop));
+  const raw = [];
+
+  await new Promise((resolve)=>{
+    let f = 0;
+    function chunk(){
+      const deadline = performance.now() + 24; // work ~24ms then yield
+      while (f < frames && performance.now() < deadline){
+        const off = f*hop;
+        const slice = ds.subarray(off, off+win);
+        const freq = detectPitch(slice, targetRate, 70, 1000);
+        const t = (off + win/2)/targetRate;
+        raw.push({ t, midi: freq>0 ? freqToMidi(freq) : null });
+        f++;
+      }
+      bar.style.width = (100*f/frames).toFixed(1)+'%';
+      if (f < frames){ requestAnimationFrame(chunk); }
+      else resolve();
+    }
+    chunk();
+  });
+
+  targetCurve = medianSmooth(raw);
+  computeRange(targetCurve);
+  songDuration = buffer.duration;
+  prog.style.display = 'none';
+  bar.style.width = '0%';
+}
+
+// Median-of-5 smoothing + drop lone voiced frames to kill octave jumps/noise.
+function medianSmooth(raw){
+  const out = raw.map(r=>({t:r.t, midi:r.midi}));
+  const k = 2;
+  for (let i=0;i<raw.length;i++){
+    const vals = [];
+    for (let j=i-k;j<=i+k;j++){ if(j>=0 && j<raw.length && raw[j].midi!=null) vals.push(raw[j].midi); }
+    if (vals.length < 2){ out[i].midi = null; continue; }
+    vals.sort((a,b)=>a-b);
+    out[i].midi = vals[Math.floor(vals.length/2)];
+  }
+  return out;
+}
+
+function computeRange(curve){
+  let lo=200, hi=0;
+  for (const p of curve){ if(p.midi!=null){ lo=Math.min(lo,p.midi); hi=Math.max(hi,p.midi); } }
+  if (hi<=0){ noteLo=48; noteHi=72; return; }
+  noteLo = Math.floor(lo) - 3;
+  noteHi = Math.ceil(hi) + 3;
+  if (noteHi - noteLo < 14){ const mid=(noteHi+noteLo)/2; noteLo=Math.floor(mid-7); noteHi=Math.ceil(mid+7); }
+}
+
+// ---------- Mic ----------
+document.getElementById('micBtn').addEventListener('click', async ()=>{
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    const c = getCtx();
+    micSource = c.createMediaStreamSource(micStream);
+    micAnalyser = c.createAnalyser();
+    micAnalyser.fftSize = 2048;
+    micBuf = new Float32Array(micAnalyser.fftSize);
+    micRate = c.sampleRate;
+    micSource.connect(micAnalyser);
+    document.getElementById('micBtn').textContent = 'Mic on';
+    document.getElementById('micBtn').disabled = true;
+    setStatus('Mic ready.');
+  } catch(err){
+    setStatus('Mic blocked: '+err.message);
+  }
+});
+
+// ---------- Playback ----------
+document.getElementById('playBtn').addEventListener('click', startPlay);
+document.getElementById('stopBtn').addEventListener('click', stopPlay);
+
+function startPlay(){
+  const c = getCtx();
+  if (c.state === 'suspended') c.resume();
+  const playBuffer = backingBuffer || vocalBuffer;
+  if (!playBuffer){ setStatus('Load a vocal stem first.'); return; }
+
+  stopPlay(); // clean any prior source
+
+  playSource = c.createBufferSource();
+  playSource.buffer = playBuffer;
+  playGain = c.createGain();
+  playGain.gain.value = parseFloat(document.getElementById('guideVol').value);
+  playSource.connect(playGain).connect(c.destination);
+
+  hitFrames = 0; totalFrames = 0; yourTrail = [];
+  playStartCtxTime = c.currentTime;
+  playSource.start(0);
+  playing = true;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('playBtn').textContent = 'Restart';
+  playSource.onended = ()=>{ if(playing) stopPlay(); };
+}
+
+function stopPlay(){
+  if (playSource){ try{ playSource.onended=null; playSource.stop(); }catch(e){} playSource.disconnect(); playSource=null; }
+  playing = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('playBtn').textContent = 'Play';
+}
+
+document.getElementById('guideVol').addEventListener('input', (e)=>{
+  if (playGain) playGain.gain.value = parseFloat(e.target.value);
+});
+
+function songTime(){ return playing ? (getCtx().currentTime - playStartCtxTime) : 0; }
+
+// ---------- Target lookup ----------
+function targetAt(t){
+  if (!targetCurve.length) return null;
+  // binary search nearest frame
+  let lo=0, hi=targetCurve.length-1;
+  if (t <= targetCurve[0].t) return targetCurve[0].midi;
+  if (t >= targetCurve[hi].t) return targetCurve[hi].midi;
+  while (lo<=hi){
+    const mid=(lo+hi)>>1;
+    if (targetCurve[mid].t < t) lo=mid+1; else hi=mid-1;
+  }
+  const a=targetCurve[hi], b=targetCurve[lo];
+  if (!a || !b) return (a||b).midi;
+  if (a.midi==null || b.midi==null) return a.midi ?? b.midi ?? null;
+  const f=(t-a.t)/(b.t-a.t);
+  return a.midi + (b.midi-a.midi)*f;
+}
+
+// ---------- Canvas / render ----------
+const cv = document.getElementById('cv');
+const g = cv.getContext('2d');
+let W=0, H=0, DPR=1;
+function resize(){
+  DPR = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  g.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+const PX_PER_SEC = 130;
+const NOW_X_FRAC = 0.30;
+
+function midiToY(m){
+  // higher pitch = higher on screen
+  const pad = 24;
+  const f = (m - noteLo)/(noteHi - noteLo);
+  return H - pad - f*(H - 2*pad);
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  g.clearRect(0,0,W,H);
+  const nowX = W*NOW_X_FRAC;
+  const t = songTime();
+
+  // --- horizontal note lanes ---
+  g.font = '11px system-ui';
+  for (let m=noteLo; m<=noteHi; m++){
+    const y = midiToY(m);
+    const isC = (((m%12)+12)%12)===0;
+    g.strokeStyle = isC ? '#38445a' : '#212a39';
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(40,y); g.lineTo(W,y); g.stroke();
+    if (isC || (noteHi-noteLo)<=18){
+      g.fillStyle = '#5a6a83';
+      g.fillText(noteName(m), 6, y+3);
+    }
+  }
+
+  // --- now line ---
+  g.strokeStyle = '#4f9dff55';
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(nowX,0); g.lineTo(nowX,H); g.stroke();
+
+  // --- target ribbon ---
+  if (targetCurve.length){
+    const tLeft = t - nowX/PX_PER_SEC;
+    const tRight = t + (W-nowX)/PX_PER_SEC;
+    g.lineWidth = 7;
+    g.lineCap = 'round';
+    g.strokeStyle = '#3b6ef0';
+    g.beginPath();
+    let pen = false;
+    for (const p of targetCurve){
+      if (p.t < tLeft-0.1 || p.t > tRight+0.1) { pen=false; continue; }
+      if (p.midi==null){ pen=false; continue; }
+      const x = nowX + (p.t - t)*PX_PER_SEC;
+      const y = midiToY(p.midi);
+      if (!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
+    }
+    g.stroke();
+
+    // highlight the target segment right at the now-line
+    const tgtNow = targetAt(t);
+    if (tgtNow!=null){
+      const y = midiToY(tgtNow);
+      g.fillStyle = '#8fb4ff';
+      g.beginPath(); g.arc(nowX,y,6,0,7); g.fill();
+    }
+  }
+
+  // --- live pitch ---
+  let yourMidi = null;
+  if (micAnalyser){
+    micAnalyser.getFloatTimeDomainData(micBuf);
+    const f = detectPitch(micBuf, micRate, 70, 1000);
+    if (f>0){ yourMidi = freqToMidi(f); }
+  }
+
+  // trail
+  if (playing && yourMidi!=null){
+    yourTrail.push({t, midi:yourMidi});
+  }
+  const trailCutoff = t - nowX/PX_PER_SEC;
+  while (yourTrail.length && yourTrail[0].t < trailCutoff) yourTrail.shift();
+
+  g.lineWidth = 3; g.strokeStyle = '#35d07f'; g.beginPath();
+  let tp=false;
+  for (const p of yourTrail){
+    const x = nowX + (p.t - t)*PX_PER_SEC;
+    const y = midiToY(p.midi);
+    if(!tp){ g.moveTo(x,y); tp=true; } else g.lineTo(x,y);
+  }
+  g.stroke();
+
+  // --- readouts + scoring ---
+  const noteEl = document.getElementById('noteOut');
+  const centsEl = document.getElementById('centsOut');
+  if (yourMidi!=null){
+    noteEl.textContent = noteName(yourMidi);
+    const tgt = playing ? targetAt(t) : null;
+    if (tgt!=null){
+      const cents = Math.round((yourMidi - tgt)*100);
+      centsEl.textContent = (cents>0?'+':'') + cents;
+      centsEl.style.color = Math.abs(cents)<=50 ? 'var(--good)' : (Math.abs(cents)<=120?'var(--ok)':'var(--bad)');
+      // your dot at now line
+      const y = midiToY(yourMidi);
+      g.fillStyle = Math.abs(cents)<=50?'#35d07f':(Math.abs(cents)<=120?'#ffd23f':'#ff5d5d');
+      g.beginPath(); g.arc(nowX,y,8,0,7); g.fill();
+      totalFrames++;
+      if (Math.abs(cents)<=100) hitFrames++;
+    } else {
+      const frac = yourMidi - Math.floor(yourMidi);
+      centsEl.textContent = (Math.round((frac-0.0)*100-50)) + '';
+      centsEl.style.color = 'var(--dim)';
+      const y = midiToY(yourMidi);
+      g.fillStyle = '#35d07f';
+      g.beginPath(); g.arc(nowX,y,8,0,7); g.fill();
+    }
+  } else {
+    noteEl.textContent = '--';
+    centsEl.textContent = '--';
+    centsEl.style.color = 'var(--text)';
+  }
+  document.getElementById('scoreOut').textContent =
+    totalFrames>0 ? Math.round(100*hitFrames/totalFrames)+'%' : '--';
+}
+
+resize();
+draw();
+</script>
+</body>
+</html>
