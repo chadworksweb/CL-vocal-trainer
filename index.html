@@ -2,8 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Voice Trainer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0d1017" />
+<title>Vocal Trainer</title>
+<meta name="description" content="A private, in-browser pitch trainer for singers. Load a vocal stem, sing to the line, and see your pitch scored in real time. Everything runs on your device; your audio is never uploaded." />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Vocal Trainer" />
+<meta property="og:title" content="Vocal Trainer" />
+<meta property="og:description" content="A private, in-browser pitch trainer for singers. Sing to your own stems; everything runs on your device." />
+<meta property="og:type" content="website" />
 <style>
   :root {
     --bg: #0d1017;
@@ -17,8 +29,10 @@
     --good: #35d07f;
     --ok: #ffd23f;
     --bad: #ff5d5d;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg);
@@ -27,65 +41,121 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
   }
+
+  /* ---------- top bar: loaders + readout ---------- */
   header {
-    padding: 10px 16px;
+    padding: calc(8px + var(--safe-t)) 12px 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex-wrap: wrap;
   }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; white-space: nowrap; }
   header h1 span { color: var(--accent); }
   .group { display: flex; align-items: center; gap: 8px; }
   .group label.cap { color: var(--dim); font-size: 12px; }
+
   button {
     background: var(--panel2);
     color: var(--text);
     border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 7px 12px;
+    border-radius: 9px;
+    padding: 9px 13px;
     font-size: 13px;
     cursor: pointer;
+    min-height: 40px;
+    touch-action: manipulation;
   }
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: .4; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 600; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+
   input[type=file] { display: none; }
   .filebtn { display: inline-flex; align-items: center; gap: 6px; }
-  .filebtn .name { color: var(--dim); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  input[type=range] { width: 90px; }
+  .filebtn .name { color: var(--dim); font-size: 12px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  input[type=range] { width: 96px; height: 30px; accent-color: var(--accent); }
   .spacer { flex: 1; }
+
   .readout {
-    display: flex; gap: 18px; align-items: baseline;
+    display: flex; gap: 14px; align-items: baseline;
     background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 8px; padding: 6px 14px;
+    border-radius: 9px; padding: 6px 12px;
+    margin-left: auto;
   }
-  .readout .big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .readout .lbl { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .readout .big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .readout .lbl { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
   .cents { font-variant-numeric: tabular-nums; }
-  #stage { flex: 1; position: relative; }
-  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- stage / canvas ---------- */
+  #stage { flex: 1; position: relative; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* ---------- bottom control bar (thumb zone) ---------- */
+  .controlbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px calc(8px + var(--safe-b));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .controlbar .hint { font-size: 12px; color: var(--dim); }
+  .transport { display: flex; gap: 8px; }
+  .transport button { min-width: 74px; }
+
+  /* ---------- overlay ---------- */
   #overlay {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(13,16,23,.82); text-align: center; padding: 24px;
+    background: rgba(13,16,23,.9); text-align: center; padding: 24px;
+    overflow: auto;
   }
   #overlay .card { max-width: 520px; }
-  #overlay h2 { margin: 0 0 10px; font-size: 18px; }
+  #overlay h2 { margin: 0 0 10px; font-size: 19px; }
   #overlay p { color: var(--dim); margin: 6px 0; }
   #overlay ol { color: var(--dim); text-align: left; margin: 14px auto; max-width: 400px; line-height: 1.7; }
+  #overlay .stemnote { color: var(--accent); font-size: 12.5px; margin-top: 10px; }
   .progress { margin-top: 14px; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: none; }
   .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
   .hint { font-size: 12px; color: var(--dim); }
   .dot-swatch { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px;}
+  .legend { font-size: 12px; color: var(--dim); }
+
+  /* rotate nudge, portrait phones only */
+  #rotate {
+    position: absolute; inset: 0; display: none; z-index: 5;
+    align-items: center; justify-content: center; text-align: center;
+    background: rgba(13,16,23,.92); color: var(--dim); padding: 24px;
+  }
+
+  /* ---------- narrow screens ---------- */
+  @media (max-width: 720px) {
+    header { gap: 8px; padding: calc(8px + var(--safe-t)) 10px 8px; }
+    header h1 { font-size: 14px; }
+    .readout { width: 100%; margin-left: 0; justify-content: space-between; order: 3; }
+    .filebtn .name { max-width: 84px; }
+    .legend { display: none; }
+    button { min-height: 44px; }
+    .transport button { flex: 1; min-width: 0; }
+    .transport { flex: 1; }
+    .controlbar { gap: 8px; }
+  }
+  @media (max-width: 720px) and (orientation: portrait) {
+    #rotate { display: flex; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Voice<span>Trainer</span></h1>
+  <h1>Vocal<span>Trainer</span></h1>
 
   <div class="group">
     <label class="filebtn" title="Vocal stem WAV used to build the target pitch line">
@@ -98,17 +168,10 @@
   <div class="group">
     <label class="filebtn" title="Optional backing track to play while you sing">
       <input type="file" id="backFile" accept="audio/*" />
-      <button onclick="this.previousElementSibling.click()">Backing (opt)</button>
+      <button onclick="this.previousElementSibling.click()">Backing</button>
       <span class="name" id="backName">plays vocal</span>
     </label>
   </div>
-
-  <div class="group">
-    <label class="cap">Guide</label>
-    <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
-  </div>
-
-  <div class="spacer"></div>
 
   <div class="readout">
     <div>
@@ -126,30 +189,43 @@
   </div>
 </header>
 
-<div class="group" style="padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);">
-  <button id="micBtn">Enable mic</button>
-  <button id="playBtn" class="primary" disabled>Play</button>
-  <button id="stopBtn" disabled>Stop</button>
-  <span class="hint" id="statusHint">Load a vocal stem to begin.</span>
-  <div class="spacer"></div>
-  <span class="hint"><span class="dot-swatch" style="background:var(--target)"></span>target &nbsp; <span class="dot-swatch" style="background:var(--good)"></span>your pitch</span>
-</div>
-
 <div id="stage">
   <canvas id="cv"></canvas>
+
+  <div id="rotate">
+    <div>Turn your phone sideways for a wider view of the melody.</div>
+  </div>
+
   <div id="overlay">
     <div class="card">
       <h2>Sing along, hit the line.</h2>
-      <p>A local pitch trainer, like Let's Sing, driven by your own songs.</p>
+      <p>A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
       <ol>
-        <li>Export a <b>vocal stem</b> (WAV) from Ableton and load it above.</li>
-        <li>Optionally load a <b>backing track</b> to sing over (else the vocal plays as a guide, turn Guide down to test yourself).</li>
-        <li>Click <b>Enable mic</b>, then <b>Play</b>.</li>
+        <li>Load a <b>vocal stem</b> (WAV) exported from your session.</li>
+        <li>Optionally load a <b>backing track</b> to sing over (otherwise the vocal plays as a guide; turn Guide down to test yourself).</li>
+        <li>Tap <b>Enable mic</b>, then <b>Play</b>.</li>
       </ol>
-      <p class="hint">The blue ribbon is the target melody. Your green dot should ride on top of it.</p>
+      <p class="hint">The blue line is the target melody. Your green dot should ride on top of it.</p>
+      <p class="stemnote">Works best with an isolated vocal. A full mix makes the target line muddy. On a phone, use headphones so the guide does not leak into your mic.</p>
       <div class="progress" id="prog"><div id="progBar"></div></div>
     </div>
   </div>
+</div>
+
+<div class="controlbar">
+  <button id="micBtn">Enable mic</button>
+  <div class="transport">
+    <button id="playBtn" class="primary" disabled>Play</button>
+    <button id="stopBtn" disabled>Stop</button>
+  </div>
+  <button id="viewBtn" title="Toggle between the flowing pitch ribbon and Let's Sing style note blocks">View: Ribbon</button>
+  <div class="group">
+    <label class="cap">Guide</label>
+    <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
+  </div>
+  <div class="spacer"></div>
+  <span class="legend"><span class="dot-swatch" style="background:var(--target)"></span>target &nbsp; <span class="dot-swatch" style="background:var(--good)"></span>your pitch</span>
+  <span class="hint" id="statusHint">Load a vocal stem to begin.</span>
 </div>
 
 <script>
@@ -174,7 +250,6 @@ function detectPitch(buf, sampleRate, minFreq, maxFreq){
   const minLag = Math.max(2, Math.floor(sampleRate/maxFreq));
 
   let bestLag = -1, bestCorr = 0;
-  let prevCorr = 0, rising = false;
   const norm = [];
   // energy at lag 0
   let c0 = 0;
@@ -187,7 +262,6 @@ function detectPitch(buf, sampleRate, minFreq, maxFreq){
     for (let i=0;i<lim;i++) c += buf[i]*buf[i+lag];
     const nc = c / c0; // rough normalized correlation
     norm[lag] = nc;
-    // track the first strong local peak to reduce octave-up errors
     if (nc > bestCorr){ bestCorr = nc; bestLag = lag; }
   }
 
@@ -217,7 +291,9 @@ function noteName(midi){
 let vocalBuffer = null;    // decoded AudioBuffer for pitch extraction (+ fallback playback)
 let backingBuffer = null;  // decoded AudioBuffer for playback
 let targetCurve = [];      // [{t, midi}] extracted target pitch line
+let targetNotes = [];      // [{startT, endT, midi}] quantized note blocks (Let's Sing view)
 let noteLo = 48, noteHi = 72; // display range (MIDI)
+let viewMode = 'ribbon';   // 'ribbon' = flowing pitch line, 'notes' = flatlined blocks
 
 let micStream = null, micSource = null, micAnalyser = null, micBuf = null, micRate = 44100;
 
@@ -225,6 +301,7 @@ let playing = false;
 let playStartCtxTime = 0;   // ctx.currentTime when playback started
 let playSource = null, playGain = null;
 let songDuration = 0;
+let wakeLock = null;
 
 let hitFrames = 0, totalFrames = 0;
 let yourTrail = []; // [{t, midi}] your recent pitch for drawing
@@ -239,18 +316,26 @@ document.getElementById('vocalFile').addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return;
   document.getElementById('vocalName').textContent = f.name;
   setStatus('Decoding vocal stem...');
-  vocalBuffer = await decodeFile(f);
-  await extractTarget(vocalBuffer);
-  document.getElementById('playBtn').disabled = false;
-  setStatus('Target line ready. Enable mic, then Play.');
+  try {
+    vocalBuffer = await decodeFile(f);
+    await extractTarget(vocalBuffer);
+    document.getElementById('playBtn').disabled = false;
+    setStatus('Target line ready. Enable mic, then Play.');
+  } catch(err){
+    setStatus('Could not decode that file: ' + err.message);
+  }
 });
 
 document.getElementById('backFile').addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return;
   document.getElementById('backName').textContent = f.name;
   setStatus('Decoding backing track...');
-  backingBuffer = await decodeFile(f);
-  setStatus('Backing loaded.');
+  try {
+    backingBuffer = await decodeFile(f);
+    setStatus('Backing loaded.');
+  } catch(err){
+    setStatus('Could not decode backing: ' + err.message);
+  }
 });
 
 function setStatus(t){ document.getElementById('statusHint').textContent = t; }
@@ -300,6 +385,7 @@ async function extractTarget(buffer){
   });
 
   targetCurve = medianSmooth(raw);
+  targetNotes = segmentNotes(targetCurve);
   computeRange(targetCurve);
   songDuration = buffer.duration;
   prog.style.display = 'none';
@@ -329,12 +415,43 @@ function computeRange(curve){
   if (noteHi - noteLo < 14){ const mid=(noteHi+noteLo)/2; noteLo=Math.floor(mid-7); noteHi=Math.ceil(mid+7); }
 }
 
+// Segment the continuous target curve into discrete semitone blocks (Let's Sing view).
+function segmentNotes(curve){
+  const notes = [];
+  const maxGap = 0.12;   // seconds; a larger gap between voiced frames breaks the note
+  const minDur = 0.06;   // seconds; drop blips shorter than this
+  const pad = 0.0125;    // half a hop; extend blocks so they visually touch
+  let cur = null;
+  for (const p of curve){
+    if (p.midi==null){ if(cur){ notes.push(cur); cur=null; } continue; }
+    const q = Math.round(p.midi);
+    if (cur && cur.midi===q && (p.t - cur.endT) <= maxGap){
+      cur.endT = p.t;
+    } else {
+      if (cur) notes.push(cur);
+      cur = { midi:q, startT:p.t, endT:p.t };
+    }
+  }
+  if (cur) notes.push(cur);
+  return notes
+    .filter(n => (n.endT - n.startT) >= minDur)
+    .map(n => ({ midi:n.midi, startT:n.startT - pad, endT:n.endT + pad }));
+}
+
+// Quantized note pitch active at time t (null between notes). Used for scoring in notes view.
+function noteAt(t){
+  for (const n of targetNotes){ if (t >= n.startT && t <= n.endT) return n.midi; }
+  return null;
+}
+
 // ---------- Mic ----------
 document.getElementById('micBtn').addEventListener('click', async ()=>{
   try {
+    getCtx(); // ensure context exists on the user gesture (iOS)
     micStream = await navigator.mediaDevices.getUserMedia({ audio: {
       echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
     const c = getCtx();
+    if (c.state === 'suspended') await c.resume();
     micSource = c.createMediaStreamSource(micStream);
     micAnalyser = c.createAnalyser();
     micAnalyser.fftSize = 2048;
@@ -371,6 +488,7 @@ function startPlay(){
   playStartCtxTime = c.currentTime;
   playSource.start(0);
   playing = true;
+  requestWakeLock();
   document.getElementById('overlay').style.display = 'none';
   document.getElementById('stopBtn').disabled = false;
   document.getElementById('playBtn').textContent = 'Restart';
@@ -380,6 +498,7 @@ function startPlay(){
 function stopPlay(){
   if (playSource){ try{ playSource.onended=null; playSource.stop(); }catch(e){} playSource.disconnect(); playSource=null; }
   playing = false;
+  releaseWakeLock();
   document.getElementById('stopBtn').disabled = true;
   document.getElementById('playBtn').textContent = 'Play';
 }
@@ -388,12 +507,30 @@ document.getElementById('guideVol').addEventListener('input', (e)=>{
   if (playGain) playGain.gain.value = parseFloat(e.target.value);
 });
 
+// ---------- View toggle ----------
+document.getElementById('viewBtn').addEventListener('click', (e)=>{
+  viewMode = (viewMode==='ribbon') ? 'notes' : 'ribbon';
+  e.target.textContent = 'View: ' + (viewMode==='notes' ? 'Notes' : 'Ribbon');
+});
+
+// ---------- Screen wake lock (keep phone awake during a session) ----------
+async function requestWakeLock(){
+  try {
+    if ('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); }
+  } catch(e){ /* non-fatal */ }
+}
+function releaseWakeLock(){
+  if (wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if (document.visibilityState === 'visible' && playing) requestWakeLock();
+});
+
 function songTime(){ return playing ? (getCtx().currentTime - playStartCtxTime) : 0; }
 
 // ---------- Target lookup ----------
 function targetAt(t){
   if (!targetCurve.length) return null;
-  // binary search nearest frame
   let lo=0, hi=targetCurve.length-1;
   if (t <= targetCurve[0].t) return targetCurve[0].midi;
   if (t >= targetCurve[hi].t) return targetCurve[hi].midi;
@@ -420,6 +557,7 @@ function resize(){
   g.setTransform(DPR,0,0,DPR,0,0);
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', ()=> setTimeout(resize, 120));
 
 const PX_PER_SEC = 130;
 const NOW_X_FRAC = 0.30;
@@ -430,6 +568,19 @@ function midiToY(m){
   const f = (m - noteLo)/(noteHi - noteLo);
   return H - pad - f*(H - 2*pad);
 }
+
+function roundRect(x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);
+  g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r);
+  g.arcTo(x,y,x+w,y,r);
+  g.closePath();
+}
+
+// Target pitch the singer should be on right now, per the active view.
+function currentTarget(t){ return viewMode==='notes' ? noteAt(t) : targetAt(t); }
 
 function draw(){
   requestAnimationFrame(draw);
@@ -456,10 +607,24 @@ function draw(){
   g.lineWidth = 2;
   g.beginPath(); g.moveTo(nowX,0); g.lineTo(nowX,H); g.stroke();
 
-  // --- target ribbon ---
-  if (targetCurve.length){
-    const tLeft = t - nowX/PX_PER_SEC;
-    const tRight = t + (W-nowX)/PX_PER_SEC;
+  // --- target: ribbon (continuous) or notes (flatlined blocks) ---
+  const tLeft = t - nowX/PX_PER_SEC;
+  const tRight = t + (W-nowX)/PX_PER_SEC;
+
+  if (viewMode==='notes' && targetNotes.length){
+    const lane = Math.abs(midiToY(noteLo) - midiToY(noteLo+1));
+    const bh = Math.max(8, lane*0.62);
+    for (const n of targetNotes){
+      if (n.endT < tLeft-0.2 || n.startT > tRight+0.2) continue;
+      const x0 = nowX + (n.startT - t)*PX_PER_SEC;
+      const x1 = nowX + (n.endT   - t)*PX_PER_SEC;
+      const y = midiToY(n.midi) - bh/2;
+      const active = (t >= n.startT && t <= n.endT);
+      g.fillStyle = active ? '#8fb4ff' : '#3b6ef0';
+      roundRect(x0, y, Math.max(2, x1-x0), bh, Math.min(bh/2, 6));
+      g.fill();
+    }
+  } else if (targetCurve.length){
     g.lineWidth = 7;
     g.lineCap = 'round';
     g.strokeStyle = '#3b6ef0';
@@ -474,7 +639,6 @@ function draw(){
     }
     g.stroke();
 
-    // highlight the target segment right at the now-line
     const tgtNow = targetAt(t);
     if (tgtNow!=null){
       const y = midiToY(tgtNow);
@@ -512,12 +676,11 @@ function draw(){
   const centsEl = document.getElementById('centsOut');
   if (yourMidi!=null){
     noteEl.textContent = noteName(yourMidi);
-    const tgt = playing ? targetAt(t) : null;
+    const tgt = playing ? currentTarget(t) : null;
     if (tgt!=null){
       const cents = Math.round((yourMidi - tgt)*100);
       centsEl.textContent = (cents>0?'+':'') + cents;
       centsEl.style.color = Math.abs(cents)<=50 ? 'var(--good)' : (Math.abs(cents)<=120?'var(--ok)':'var(--bad)');
-      // your dot at now line
       const y = midiToY(yourMidi);
       g.fillStyle = Math.abs(cents)<=50?'#35d07f':(Math.abs(cents)<=120?'#ffd23f':'#ff5d5d');
       g.beginPath(); g.arc(nowX,y,8,0,7); g.fill();
@@ -542,6 +705,17 @@ function draw(){
 
 resize();
 draw();
+</script>
+
+<script>
+// Register the service worker when served over http(s) so the tool installs and
+// runs offline. Skipped on file:// (double-click), where SW is unavailable; the
+// app still works fully without it.
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){ /* progressive enhancement */ });
+  });
+}
 </script>
 </body>
 </html>
