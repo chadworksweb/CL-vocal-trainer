@@ -29,6 +29,13 @@
     --good: #35d07f;
     --ok: #ffd23f;
     --bad: #ff5d5d;
+    /* artistworld / chadrising theme tokens (dark) for the mobile drawer chrome */
+    --aw-surface: #1a1f2e;
+    --aw-elev: #232b3d;
+    --aw-border: #2a3040;
+    --aw-accent: #2c4a6e;
+    --aw-text: #c5d5e8;
+    --aw-muted: #7a8a9e;
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
   }
@@ -197,17 +204,88 @@
     background: rgba(13,16,23,.92); color: var(--dim); padding: 24px;
   }
 
-  /* ---------- narrow screens ---------- */
+  /* mobile chrome hidden on desktop */
+  .menu-btn { display: none; }
+  .drawer, .drawer-backdrop { display: none; }
+
+  /* ---------- mobile: unified header + sidebar drawer (artistworld theme) ---------- */
   @media (max-width: 720px) {
-    header { gap: 8px; padding: calc(12px + var(--safe-t)) 12px 12px; }
-    header h1 { font-size: 14px; }
-    .readout { width: 100%; margin-left: 0; justify-content: space-between; order: 3; }
-    .filebtn .name { max-width: 84px; }
-    .legend { display: none; }
-    button { min-height: 44px; }
-    .transport button { flex: 1; min-width: 0; }
-    .transport { flex: 1; }
-    .controlbar { gap: 8px; }
+    header {
+      min-height: 56px;
+      padding: var(--safe-t) 12px 0;
+      gap: 10px; flex-wrap: nowrap; align-items: center;
+    }
+    header h1 { font-size: 15px; order: 2; }
+    .menu-btn {
+      display: flex; order: 1; align-items: center; justify-content: center;
+      width: 42px; height: 42px; padding: 0; flex-shrink: 0;
+      background: rgba(44,74,110,.14); border: 1px solid var(--aw-border);
+      border-radius: 9px; color: var(--aw-text); cursor: pointer;
+    }
+    .menu-btn svg { width: 22px; height: 22px; }
+    header .group.loader { display: none; }
+    body > .controlbar { display: none; }
+    .readout { order: 3; width: auto; margin-left: auto; gap: 12px; padding: 4px 10px; }
+    .readout .big { font-size: 15px; }
+    .readout .lbl { font-size: 9px; }
+
+    .drawer-backdrop {
+      display: block; position: fixed; inset: 0; z-index: 40;
+      background: rgba(0,0,0,.5); opacity: 0; visibility: hidden;
+      transition: opacity .25s ease;
+    }
+    .drawer-backdrop.open { opacity: 1; visibility: visible; }
+
+    .drawer {
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+      width: min(86vw, 340px);
+      background: var(--aw-surface); border-right: 1px solid var(--aw-border);
+      box-shadow: 8px 0 40px rgba(0,0,0,.55);
+      transform: translateX(-100%);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      overflow-y: auto; overscroll-behavior: contain;
+      padding-top: var(--safe-t); padding-bottom: var(--safe-b);
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 12px; border-bottom: 1px solid var(--aw-border);
+    }
+    .drawer-head .logo { font-size: 16px; font-weight: 600; letter-spacing: -.02em; color: var(--aw-text); }
+    .drawer-head .logo span { color: var(--accent); }
+    .drawer-close {
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--aw-border); border-radius: 8px;
+      color: var(--aw-muted); cursor: pointer; flex-shrink: 0;
+    }
+    .drawer-close svg { width: 20px; height: 20px; }
+    .drawer-inner { padding: 8px 14px 20px; display: flex; flex-direction: column; }
+    .drawer-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--aw-muted); padding: 14px 2px 6px;
+    }
+    .drawer .group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; margin-bottom: 10px; }
+    .drawer .group .cap { color: var(--aw-muted); font-size: 12px; }
+    .drawer .filebtn { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+    .drawer .filebtn .name { max-width: none; text-align: left; color: var(--aw-muted); }
+    .drawer .arrow-hint { display: none; }
+    .drawer button {
+      width: 100%; min-height: 50px; justify-content: center;
+      background: var(--aw-elev); border: 1px solid var(--aw-border); color: var(--aw-text);
+      font-size: 15px; border-radius: 10px;
+    }
+    .drawer button:hover:not(:disabled) { border-color: var(--accent); background: var(--aw-accent); }
+    .drawer button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; }
+    .drawer .controlbar {
+      display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+      padding: 0; margin: 0; background: none; border: none; min-height: 0;
+    }
+    .drawer .transport { display: flex; flex-direction: row; gap: 10px; margin: 0; }
+    .drawer .transport button { flex: 1; }
+    .drawer input[type=range] { width: 100%; height: 36px; }
+    .drawer .legend, .drawer .spacer { display: none; }
+    .drawer .hint { color: var(--aw-muted); font-size: 12px; }
   }
   @media (max-width: 720px) and (orientation: portrait) {
     #rotate { display: flex; }
@@ -216,9 +294,12 @@
 </head>
 <body>
 <header>
+  <button class="menu-btn pulse" id="menuBtn" aria-label="Open controls menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
   <h1>Vocal<span>Trainer</span></h1>
 
-  <div class="group">
+  <div class="group loader" id="stemGroup">
     <label class="filebtn" title="Vocal stem WAV used to build the target pitch line">
       <input type="file" id="vocalFile" accept="audio/*" />
       <button id="vocalBtn" class="pulse" onclick="this.previousElementSibling.click()">Vocal stem</button>
@@ -227,7 +308,7 @@
     </label>
   </div>
 
-  <div class="group">
+  <div class="group loader" id="backGroup">
     <label class="filebtn" title="Optional backing track to play while you sing">
       <input type="file" id="backFile" accept="audio/*" />
       <button onclick="this.previousElementSibling.click()">Backing</button>
@@ -289,6 +370,24 @@
   <span class="legend"><span class="dot-swatch" style="background:var(--target)"></span>target &nbsp; <span class="dot-swatch" style="background:var(--good)"></span>your pitch</span>
   <span class="hint" id="statusHint">Load a vocal stem to begin.</span>
 </div>
+
+<!-- Mobile sidebar drawer (artistworld unified-header pattern). The controls are
+     the real nodes, moved in here on mobile and restored to their desktop bars. -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<nav class="drawer" id="drawer" aria-label="Controls">
+  <div class="drawer-head">
+    <span class="logo">Vocal<span>Trainer</span></span>
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-inner">
+    <div class="drawer-section-title">Load</div>
+    <div id="slot-load"></div>
+    <div class="drawer-section-title">Controls</div>
+    <div id="slot-controls"></div>
+  </div>
+</nav>
 
 <script>
 "use strict";
@@ -377,6 +476,7 @@ async function decodeFile(file){
 document.getElementById('vocalFile').addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return;
   document.getElementById('vocalBtn').classList.remove('pulse');
+  document.getElementById('menuBtn').classList.remove('pulse');
   const arr = document.getElementById('vocalArrow'); if (arr) arr.style.display = 'none';
   document.getElementById('vocalName').textContent = f.name;
   setStatus('Decoding vocal stem...');
@@ -553,6 +653,7 @@ function startPlay(){
   playSource.start(0);
   playing = true;
   requestWakeLock();
+  if (window.__closeDrawer) window.__closeDrawer();
   document.getElementById('overlay').style.display = 'none';
   document.getElementById('stopBtn').disabled = false;
   document.getElementById('playBtn').textContent = 'Restart';
@@ -766,6 +867,50 @@ function draw(){
   document.getElementById('scoreOut').textContent =
     totalFrames>0 ? Math.round(100*hitFrames/totalFrames)+'%' : '--';
 }
+
+// ---------- Mobile drawer (artistworld unified-header pattern) ----------
+(function(){
+  const menuBtn = document.getElementById('menuBtn');
+  const drawer = document.getElementById('drawer');
+  const backdrop = document.getElementById('drawerBackdrop');
+  const closeBtn = document.getElementById('drawerClose');
+  const slotLoad = document.getElementById('slot-load');
+  const slotControls = document.getElementById('slot-controls');
+  const stemGroup = document.getElementById('stemGroup');
+  const backGroup = document.getElementById('backGroup');
+  const controlbar = document.querySelector('.controlbar');
+  if (!drawer || !stemGroup || !controlbar) return;
+
+  // Remember each node's desktop home so it can be restored exactly.
+  const homes = [stemGroup, backGroup, controlbar].map(el => ({ el, parent: el.parentNode, next: el.nextSibling }));
+  const mq = window.matchMedia('(max-width: 720px)');
+
+  function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('open'); }
+  function openDrawer(){ drawer.classList.add('open'); backdrop.classList.add('open'); }
+  window.__closeDrawer = closeDrawer;
+
+  function layout(){
+    if (mq.matches){
+      slotLoad.appendChild(stemGroup);
+      slotLoad.appendChild(backGroup);
+      slotControls.appendChild(controlbar);
+    } else {
+      closeDrawer();
+      // restore in reverse so each reference node is back in place first
+      [...homes].reverse().forEach(h => {
+        const ref = (h.next && h.next.parentNode === h.parent) ? h.next : null;
+        h.parent.insertBefore(h.el, ref);
+      });
+    }
+  }
+
+  menuBtn.addEventListener('click', ()=> drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+  backdrop.addEventListener('click', closeDrawer);
+  closeBtn.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDrawer(); });
+  if (mq.addEventListener) mq.addEventListener('change', layout); else mq.addListener(layout);
+  layout();
+})();
 
 resize();
 draw();
