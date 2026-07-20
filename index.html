@@ -261,9 +261,10 @@
     .drawer-head .logo { font-size: 16px; font-weight: 600; letter-spacing: -.02em; color: var(--aw-text); }
     .drawer-head .logo span { color: var(--accent); }
     .drawer-close {
-      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; min-height: 36px; padding: 0; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
       background: none; border: 1px solid var(--aw-border); border-radius: 8px;
-      color: var(--aw-muted); cursor: pointer; flex-shrink: 0;
+      color: var(--aw-muted); cursor: pointer;
     }
     .drawer-close svg { width: 20px; height: 20px; }
     .drawer-inner { padding: 8px 14px 20px; display: flex; flex-direction: column; }
@@ -280,13 +281,13 @@
     .drawer .filebtn { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
     .drawer .filebtn .name { max-width: none; text-align: left; color: var(--aw-muted); }
     .drawer .arrow-hint { display: none; }
-    .drawer button {
+    .drawer-inner button {
       width: 100%; min-height: 50px; justify-content: center;
       background: var(--aw-elev); border: 1px solid var(--aw-border); color: var(--aw-text);
       font-size: 15px; border-radius: 10px;
     }
-    .drawer button:hover:not(:disabled) { border-color: var(--accent); background: var(--aw-accent); }
-    .drawer button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; }
+    .drawer-inner button:hover:not(:disabled) { border-color: var(--accent); background: var(--aw-accent); }
+    .drawer-inner button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; }
     .drawer input[type=range] { width: 100%; height: 36px; }
     .drawer .hint { color: var(--aw-muted); font-size: 12px; }
   }
