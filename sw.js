@@ -1,7 +1,7 @@
 // Vocal Trainer service worker. Relative scope so it only controls the directory
 // it is served from (e.g. /vocal-trainer/). Cache-first for the tool assets so the
 // installed app opens and runs fully offline.
-const CACHE = 'vt-v2';
+const CACHE = 'vt-v3';
 const ASSETS = [
   './',
   'index.html',

@@ -303,17 +303,17 @@
   <h1>Vocal<span>Trainer</span></h1>
 
   <div class="group loader" id="stemGroup">
-    <label class="filebtn" title="Vocal stem WAV used to build the target pitch line">
-      <input type="file" id="vocalFile" accept="audio/*" />
+    <label class="filebtn" title="Vocal stem used to build the target pitch line (any audio file; WAV is best)">
+      <input type="file" id="vocalFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff,.caf,.webm" />
       <button id="vocalBtn" class="pulse" onclick="this.previousElementSibling.click()">Vocal stem</button>
       <span class="arrow-hint" id="vocalArrow" aria-hidden="true">&larr;</span>
-      <span class="name" id="vocalName">load a WAV</span>
+      <span class="name" id="vocalName">any audio, WAV best</span>
     </label>
   </div>
 
   <div class="group loader" id="backGroup">
     <label class="filebtn" title="Optional backing track to play while you sing">
-      <input type="file" id="backFile" accept="audio/*" />
+      <input type="file" id="backFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff,.caf,.webm" />
       <button onclick="this.previousElementSibling.click()">Backing</button>
       <span class="name" id="backName">plays vocal</span>
     </label>
@@ -347,7 +347,7 @@
       <h2>Sing along, hit the line.</h2>
       <p class="lead">A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
       <ol>
-        <li>Load a <b>vocal stem</b> (WAV) exported from your session.</li>
+        <li>Load a <b>vocal stem</b> exported from your session. Any audio file works; WAV gives the cleanest read.</li>
         <li>Optionally load a <b>backing track</b> to sing over (otherwise the vocal plays as a guide; turn Guide down to test yourself).</li>
         <li>Tap <b>Enable mic</b>, then <b>Play</b>.</li>
       </ol>
@@ -381,7 +381,7 @@
   <div class="drawer-head">
     <span class="logo">Vocal<span>Trainer</span></span>
     <button class="drawer-close" id="drawerClose" aria-label="Close menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
   <div class="drawer-inner">
