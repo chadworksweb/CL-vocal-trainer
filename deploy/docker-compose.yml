@@ -1,0 +1,20 @@
+# CL Vocal Trainer -- static PWA container. nginx:alpine serves the app files and
+# joins the shared le-proxy network so the central le-nginx can reverse-proxy
+# vt.chadlewine.com to it. No host port; le-nginx reaches it over le-proxy.
+#
+# The app files are bind-mounted from ./html (populated by deploy.sh from the repo
+# root), so updating the tool is just replacing files, no image rebuild.
+services:
+  vt-static:
+    image: nginx:alpine
+    container_name: vt-static
+    restart: unless-stopped
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+      - ./nginx-default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - le-proxy
+
+networks:
+  le-proxy:
+    external: true
