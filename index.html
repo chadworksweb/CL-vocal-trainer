@@ -224,8 +224,14 @@
     }
     .menu-btn svg { width: 22px; height: 22px; }
     header .group.loader { display: none; }
-    body > .controlbar { display: none; }
     .readout { order: 3; width: auto; margin-left: auto; gap: 12px; padding: 4px 10px; }
+    /* live-play controls stay as a persistent bottom bar */
+    .controlbar { gap: 8px; padding: 10px 12px calc(10px + var(--safe-b)); min-height: 0; }
+    .controlbar #micBtn { flex: 1; min-height: 48px; }
+    .controlbar .transport { flex: 1.3; display: flex; gap: 8px; }
+    .controlbar .transport button { flex: 1; min-height: 48px; }
+    .controlbar #statusHint { flex-basis: 100%; text-align: center; margin-top: 2px; }
+    .controlbar .legend, .controlbar .spacer { display: none; }
     .readout .big { font-size: 15px; }
     .readout .lbl { font-size: 9px; }
 
@@ -239,7 +245,7 @@
     .drawer {
       display: flex; flex-direction: column;
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
-      width: min(86vw, 340px);
+      width: min(78vw, 290px);
       background: var(--aw-surface); border-right: 1px solid var(--aw-border);
       box-shadow: 8px 0 40px rgba(0,0,0,.55);
       transform: translateX(-100%);
@@ -262,8 +268,12 @@
     .drawer-close svg { width: 20px; height: 20px; }
     .drawer-inner { padding: 8px 14px 20px; display: flex; flex-direction: column; }
     .drawer-section-title {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
-      color: var(--aw-muted); padding: 14px 2px 6px;
+      display: flex; align-items: center; gap: 10px; text-align: center;
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+      color: var(--aw-text); padding: 18px 2px 12px;
+    }
+    .drawer-section-title::before, .drawer-section-title::after {
+      content: ''; flex: 1; height: 1px; background: var(--aw-border);
     }
     .drawer .group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; margin-bottom: 10px; }
     .drawer .group .cap { color: var(--aw-muted); font-size: 12px; }
@@ -277,14 +287,7 @@
     }
     .drawer button:hover:not(:disabled) { border-color: var(--accent); background: var(--aw-accent); }
     .drawer button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; }
-    .drawer .controlbar {
-      display: flex; flex-direction: column; align-items: stretch; gap: 12px;
-      padding: 0; margin: 0; background: none; border: none; min-height: 0;
-    }
-    .drawer .transport { display: flex; flex-direction: row; gap: 10px; margin: 0; }
-    .drawer .transport button { flex: 1; }
     .drawer input[type=range] { width: 100%; height: 36px; }
-    .drawer .legend, .drawer .spacer { display: none; }
     .drawer .hint { color: var(--aw-muted); font-size: 12px; }
   }
   @media (max-width: 720px) and (orientation: portrait) {
@@ -362,7 +365,7 @@
     <button id="stopBtn" disabled>Stop</button>
   </div>
   <button id="viewBtn" title="Toggle between the waveform pitch line and Let's Sing style note blocks">View: Waveform</button>
-  <div class="group">
+  <div class="group" id="guideGroup">
     <label class="cap">Guide</label>
     <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
   </div>
@@ -384,8 +387,8 @@
   <div class="drawer-inner">
     <div class="drawer-section-title">Load</div>
     <div id="slot-load"></div>
-    <div class="drawer-section-title">Controls</div>
-    <div id="slot-controls"></div>
+    <div class="drawer-section-title">Options</div>
+    <div id="slot-options"></div>
   </div>
 </nav>
 
@@ -875,14 +878,15 @@ function draw(){
   const backdrop = document.getElementById('drawerBackdrop');
   const closeBtn = document.getElementById('drawerClose');
   const slotLoad = document.getElementById('slot-load');
-  const slotControls = document.getElementById('slot-controls');
+  const slotOptions = document.getElementById('slot-options');
   const stemGroup = document.getElementById('stemGroup');
   const backGroup = document.getElementById('backGroup');
-  const controlbar = document.querySelector('.controlbar');
-  if (!drawer || !stemGroup || !controlbar) return;
+  const viewBtn = document.getElementById('viewBtn');
+  const guideGroup = document.getElementById('guideGroup');
+  if (!drawer || !stemGroup || !viewBtn) return;
 
   // Remember each node's desktop home so it can be restored exactly.
-  const homes = [stemGroup, backGroup, controlbar].map(el => ({ el, parent: el.parentNode, next: el.nextSibling }));
+  const homes = [stemGroup, backGroup, viewBtn, guideGroup].map(el => ({ el, parent: el.parentNode, next: el.nextSibling }));
   const mq = window.matchMedia('(max-width: 720px)');
 
   function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('open'); }
@@ -893,7 +897,8 @@ function draw(){
     if (mq.matches){
       slotLoad.appendChild(stemGroup);
       slotLoad.appendChild(backGroup);
-      slotControls.appendChild(controlbar);
+      slotOptions.appendChild(viewBtn);
+      slotOptions.appendChild(guideGroup);
     } else {
       closeDrawer();
       // restore in reverse so each reference node is back in place first
