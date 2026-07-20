@@ -114,15 +114,49 @@
 
   /* ---------- overlay ---------- */
   #overlay {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(13,16,23,.9); text-align: center; padding: 24px;
+    position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(13,16,23,.92); text-align: center; padding: clamp(20px, 5vw, 40px);
     overflow: auto;
   }
-  #overlay .card { max-width: 520px; }
-  #overlay h2 { margin: 0 0 10px; font-size: 19px; }
-  #overlay p { color: var(--dim); margin: 6px 0; }
-  #overlay ol { color: var(--dim); text-align: left; margin: 14px auto; max-width: 400px; line-height: 1.7; }
-  #overlay .stemnote { color: var(--accent); font-size: 12.5px; margin-top: 10px; }
+  #overlay .card { max-width: clamp(300px, 92vw, 560px); }
+  #overlay h2 {
+    margin: 0 0 18px;
+    font-size: clamp(23px, 5.2vw, 33px);
+    line-height: 1.12;
+    letter-spacing: -.01em;
+  }
+  #overlay p {
+    color: var(--dim);
+    margin: 0 0 18px;
+    font-size: clamp(15px, 2.8vw, 18px);
+    line-height: 1.55;
+  }
+  #overlay p.lead { color: var(--text); }
+  /* the steps read as a defined block, set apart from the surrounding prose */
+  #overlay ol {
+    color: var(--text);
+    text-align: left;
+    margin: 24px auto 20px;
+    max-width: 460px;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 24px 20px 44px;
+    font-size: clamp(15px, 2.8vw, 18px);
+    line-height: 1.5;
+  }
+  #overlay ol li { margin: 0 0 14px; padding-left: 4px; }
+  #overlay ol li:last-child { margin-bottom: 0; }
+  #overlay ol li::marker { color: var(--accent); font-weight: 700; }
+  #overlay p.hint { font-size: clamp(13.5px, 2.4vw, 15.5px); margin: 0 0 16px; }
+  #overlay .stemnote {
+    color: var(--accent);
+    font-size: clamp(13.5px, 2.4vw, 15.5px);
+    line-height: 1.5;
+    margin: 18px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
   .progress { margin-top: 14px; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: none; }
   .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
   .hint { font-size: 12px; color: var(--dim); }
@@ -199,7 +233,7 @@
   <div id="overlay">
     <div class="card">
       <h2>Sing along, hit the line.</h2>
-      <p>A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
+      <p class="lead">A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
       <ol>
         <li>Load a <b>vocal stem</b> (WAV) exported from your session.</li>
         <li>Optionally load a <b>backing track</b> to sing over (otherwise the vocal plays as a guide; turn Guide down to test yourself).</li>
@@ -218,7 +252,7 @@
     <button id="playBtn" class="primary" disabled>Play</button>
     <button id="stopBtn" disabled>Stop</button>
   </div>
-  <button id="viewBtn" title="Toggle between the flowing pitch ribbon and Let's Sing style note blocks">View: Ribbon</button>
+  <button id="viewBtn" title="Toggle between the waveform pitch line and Let's Sing style note blocks">View: Waveform</button>
   <div class="group">
     <label class="cap">Guide</label>
     <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
@@ -293,7 +327,7 @@ let backingBuffer = null;  // decoded AudioBuffer for playback
 let targetCurve = [];      // [{t, midi}] extracted target pitch line
 let targetNotes = [];      // [{startT, endT, midi}] quantized note blocks (Let's Sing view)
 let noteLo = 48, noteHi = 72; // display range (MIDI)
-let viewMode = 'ribbon';   // 'ribbon' = flowing pitch line, 'notes' = flatlined blocks
+let viewMode = 'waveform'; // 'waveform' = flowing pitch line, 'notes' = flatlined blocks
 
 let micStream = null, micSource = null, micAnalyser = null, micBuf = null, micRate = 44100;
 
@@ -509,8 +543,8 @@ document.getElementById('guideVol').addEventListener('input', (e)=>{
 
 // ---------- View toggle ----------
 document.getElementById('viewBtn').addEventListener('click', (e)=>{
-  viewMode = (viewMode==='ribbon') ? 'notes' : 'ribbon';
-  e.target.textContent = 'View: ' + (viewMode==='notes' ? 'Notes' : 'Ribbon');
+  viewMode = (viewMode==='waveform') ? 'notes' : 'waveform';
+  e.target.textContent = 'View: ' + (viewMode==='notes' ? 'Notes' : 'Waveform');
 });
 
 // ---------- Screen wake lock (keep phone awake during a session) ----------

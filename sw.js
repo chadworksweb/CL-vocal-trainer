@@ -1,7 +1,7 @@
 // Vocal Trainer service worker. Relative scope so it only controls the directory
 // it is served from (e.g. /vocal-trainer/). Cache-first for the tool assets so the
 // installed app opens and runs fully offline.
-const CACHE = 'vt-v1';
+const CACHE = 'vt-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -26,7 +26,22 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  // Only in-scope requests reach here. Cache-first, then refresh in the background.
+  const isHTML = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML) {
+    // Network-first for the document so app updates appear immediately online;
+    // fall back to the cached page (or index.html) when offline.
+    e.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+        return res;
+      }).catch(() => caches.match(req).then((hit) => hit || caches.match('index.html')))
+    );
+    return;
+  }
+
+  // Static assets: cache-first, refresh in the background.
   e.respondWith(
     caches.match(req).then((hit) => {
       const net = fetch(req).then((res) => {
