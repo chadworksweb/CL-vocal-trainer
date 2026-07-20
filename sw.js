@@ -1,57 +1,17 @@
-// Vocal Trainer service worker. Relative scope so it only controls the directory
-// it is served from (e.g. /vocal-trainer/). Cache-first for the tool assets so the
-// installed app opens and runs fully offline.
-const CACHE = 'vt-v3';
-const ASSETS = [
-  './',
-  'index.html',
-  'manifest.webmanifest',
-  'icon-192.png',
-  'icon-512.png',
-  'apple-touch-icon.png'
-];
+// Kill switch. The page no longer registers a service worker; this file exists
+// only so any previously-installed Vocal Trainer worker updates to this version,
+// drops its caches, unregisters itself, and reloads its pages. After that the tool
+// is served straight from the network, so every reload shows the latest version.
+// PWA/offline support can return once the tool has settled.
+self.addEventListener('install', () => self.skipWaiting());
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
-});
-
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  const isHTML = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
-
-  if (isHTML) {
-    // Network-first for the document so app updates appear immediately online;
-    // fall back to the cached page (or index.html) when offline.
-    e.respondWith(
-      fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
-        return res;
-      }).catch(() => caches.match(req).then((hit) => hit || caches.match('index.html')))
-    );
-    return;
-  }
-
-  // Static assets: cache-first, refresh in the background.
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      const net = fetch(req).then((res) => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => hit);
-      return hit || net;
-    })
-  );
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    clients.forEach((client) => client.navigate(client.url));
+  })());
 });

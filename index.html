@@ -921,15 +921,5 @@ resize();
 draw();
 </script>
 
-<script>
-// Register the service worker when served over http(s) so the tool installs and
-// runs offline. Skipped on file:// (double-click), where SW is unavailable; the
-// app still works fully without it.
-if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(){ /* progressive enhancement */ });
-  });
-}
-</script>
 </body>
 </html>
