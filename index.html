@@ -51,6 +51,7 @@
 
   /* ---------- top bar: loaders + readout ---------- */
   header {
+    min-height: 80px;
     padding: calc(12px + var(--safe-t)) 14px 12px;
     background: var(--panel);
     border-bottom: 1px solid var(--line);
@@ -88,8 +89,21 @@
     100% { box-shadow: 0 0 0 0 rgba(79,157,255,0); }
   }
   button.pulse { border-color: var(--accent); animation: vtpulse 1.7s ease-out infinite; }
+  .arrow-hint {
+    color: var(--accent);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0 2px;
+    animation: arrownudge 1s ease-in-out infinite;
+  }
+  @keyframes arrownudge {
+    0%, 100% { transform: translateX(3px); }
+    50%      { transform: translateX(-3px); }
+  }
   @media (prefers-reduced-motion: reduce) {
     button.pulse { animation: none; }
+    .arrow-hint { animation: none; }
   }
 
   input[type=file] { display: none; }
@@ -114,6 +128,7 @@
 
   /* ---------- bottom control bar (thumb zone) ---------- */
   .controlbar {
+    min-height: 80px;
     display: flex; align-items: center; gap: 10px;
     padding: 12px 14px calc(12px + var(--safe-b));
     background: var(--panel);
@@ -207,6 +222,7 @@
     <label class="filebtn" title="Vocal stem WAV used to build the target pitch line">
       <input type="file" id="vocalFile" accept="audio/*" />
       <button id="vocalBtn" class="pulse" onclick="this.previousElementSibling.click()">Vocal stem</button>
+      <span class="arrow-hint" id="vocalArrow" aria-hidden="true">&larr;</span>
       <span class="name" id="vocalName">load a WAV</span>
     </label>
   </div>
@@ -361,6 +377,7 @@ async function decodeFile(file){
 document.getElementById('vocalFile').addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return;
   document.getElementById('vocalBtn').classList.remove('pulse');
+  const arr = document.getElementById('vocalArrow'); if (arr) arr.style.display = 'none';
   document.getElementById('vocalName').textContent = f.name;
   setStatus('Decoding vocal stem...');
   try {
