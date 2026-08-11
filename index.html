@@ -174,6 +174,42 @@
   .controlbar .hint { font-family: var(--mono); font-size: 11px; color: var(--dim); }
   .transport { display: flex; gap: 8px; }
   .transport button { min-width: 74px; }
+  .latms { font-family: var(--mono); font-size: 11px; color: var(--dim); min-width: 44px; text-align: right; }
+  #latGroup input[type=range] { width: 80px; }
+  #latAuto { min-height: 32px; padding: 5px 10px; font-size: 11px; }
+  #helpBtn { width: 40px; padding: 9px 0; }
+
+  /* ---------- drag-and-drop hint ---------- */
+  #dropHint {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(7,7,13,.75); pointer-events: none;
+  }
+  #dropHint.on { display: flex; }
+  #dropHint .dh-label {
+    font-family: var(--mono); font-size: 15px; text-transform: uppercase; letter-spacing: .18em;
+    color: var(--accent); border: 1px dashed rgba(139,156,247,.6);
+    border-radius: 6px; padding: 18px 28px;
+  }
+
+  /* ---------- end-of-take summary ---------- */
+  #summary {
+    position: fixed; inset: 0; z-index: 40; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(7,7,13,.72); padding: 20px;
+  }
+  #summary[hidden] { display: none; }
+  .sum-card {
+    background: var(--panel); border: 1px solid var(--glass-border);
+    border-radius: 10px; padding: 26px 30px; text-align: center;
+    max-width: 430px; width: 100%;
+  }
+  .sum-title { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+  .sum-score { font-family: var(--mono); font-size: 46px; color: var(--text); line-height: 1; }
+  .sum-sub { font-family: var(--mono); font-size: 12px; color: var(--dim); margin: 10px 0 14px; line-height: 1.7; }
+  .sum-notes { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-bottom: 18px; }
+  .sum-notes i { width: 14px; height: 8px; border-radius: 2px; background: #3d59e0; }
+  .sum-actions { display: flex; gap: 10px; justify-content: center; }
 
   /* ---------- overlay ---------- */
   #overlay {
@@ -478,6 +514,13 @@
     <label class="cap">Guide</label>
     <input type="range" id="guideVol" min="0" max="1" step="0.01" value="0.35" title="Volume of the played reference/backing" />
   </div>
+  <div class="group" id="latGroup">
+    <label class="cap">Latency</label>
+    <input type="range" id="latency" min="0" max="400" step="10" value="0" title="Delay between what you hear and what the mic captures; scoring shifts by this much" />
+    <span class="latms" id="latMs">0ms</span>
+    <button id="latAuto" title="Play four pips and measure the round trip through your speakers and mic">Auto</button>
+  </div>
+  <button id="helpBtn" title="Reopen the intro wizard" aria-label="Reopen the intro wizard">?</button>
   <div class="spacer"></div>
   <span class="legend"><span class="dot-swatch" style="background:var(--target)"></span>target &nbsp; <span class="dot-swatch" style="background:var(--good)"></span>your pitch</span>
   <span class="hint" id="statusHint">Load a vocal stem to begin.</span>
@@ -500,6 +543,23 @@
     <div id="slot-options"></div>
   </div>
 </nav>
+
+<!-- Whole-window drag-and-drop target hint -->
+<div id="dropHint" aria-hidden="true"><div class="dh-label" id="dropHintLabel">Drop: vocal stem</div></div>
+
+<!-- End-of-take summary -->
+<div id="summary" hidden>
+  <div class="sum-card">
+    <div class="sum-title">Take summary</div>
+    <div class="sum-score" id="sumScore">--%</div>
+    <div class="sum-sub" id="sumSub"></div>
+    <div class="sum-notes" id="sumNotes"></div>
+    <div class="sum-actions">
+      <button class="primary" id="sumAgain">Sing again</button>
+      <button id="sumClose">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -577,7 +637,16 @@ let songDuration = 0;
 let wakeLock = null;
 
 let hitFrames = 0, totalFrames = 0;
+let centsSum = 0;         // signed cents accumulator for the sharp/flat tendency
+let noteStats = [];       // per targetNotes entry: {hit, total}
+let latSec = 0;           // mic-vs-playback latency compensation, seconds
 let yourTrail = []; // [{t, midi}] your recent pitch for drawing
+
+// localStorage, tolerant of private mode
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k, v); } catch(e){} }
+};
 
 // ---------- File loading ----------
 async function decodeFile(file){
@@ -585,8 +654,7 @@ async function decodeFile(file){
   return await getCtx().decodeAudioData(arr);
 }
 
-document.getElementById('vocalFile').addEventListener('change', async (e)=>{
-  const f = e.target.files[0]; if(!f) return;
+async function loadVocalFile(f){
   document.getElementById('vocalBtn').classList.remove('pulse');
   document.getElementById('menuBtn').classList.remove('pulse');
   const arr = document.getElementById('vocalArrow'); if (arr) arr.style.display = 'none';
@@ -595,16 +663,16 @@ document.getElementById('vocalFile').addEventListener('change', async (e)=>{
   try {
     vocalBuffer = await decodeFile(f);
     await extractTarget(vocalBuffer);
+    noteStats = targetNotes.map(()=>({hit:0, total:0}));
     document.getElementById('playBtn').disabled = false;
     setStatus('Target line ready. Enable mic, then Play.');
     if (window.__wizardStemLoaded) window.__wizardStemLoaded();
   } catch(err){
     setStatus('Could not decode that file: ' + err.message);
   }
-});
+}
 
-document.getElementById('backFile').addEventListener('change', async (e)=>{
-  const f = e.target.files[0]; if(!f) return;
+async function loadBackingFile(f){
   document.getElementById('backName').textContent = f.name;
   setStatus('Decoding backing track...');
   try {
@@ -613,7 +681,35 @@ document.getElementById('backFile').addEventListener('change', async (e)=>{
   } catch(err){
     setStatus('Could not decode backing: ' + err.message);
   }
+}
+
+document.getElementById('vocalFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(f) loadVocalFile(f);
 });
+
+document.getElementById('backFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(f) loadBackingFile(f);
+});
+
+// Drag-and-drop anywhere: no stem yet = the drop is the stem, otherwise backing.
+(function(){
+  const hint = document.getElementById('dropHint');
+  const label = document.getElementById('dropHintLabel');
+  window.addEventListener('dragover', (e)=>{
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    label.textContent = vocalBuffer ? 'Drop: backing track' : 'Drop: vocal stem';
+    hint.classList.add('on');
+  });
+  window.addEventListener('dragleave', (e)=>{ if (!e.relatedTarget) hint.classList.remove('on'); });
+  window.addEventListener('drop', (e)=>{
+    e.preventDefault();
+    hint.classList.remove('on');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    if (!vocalBuffer) loadVocalFile(f); else loadBackingFile(f);
+  });
+})();
 
 function setStatus(t){ document.getElementById('statusHint').textContent = t; }
 
@@ -715,10 +811,34 @@ function segmentNotes(curve){
     .map(n => ({ midi:n.midi, startT:n.startT - pad, endT:n.endT + pad }));
 }
 
+// Index of the quantized note active at time t (-1 between notes).
+function noteIdxAt(t){
+  for (let i=0;i<targetNotes.length;i++){
+    const n = targetNotes[i];
+    if (t >= n.startT && t <= n.endT) return i;
+  }
+  return -1;
+}
+
 // Quantized note pitch active at time t (null between notes). Used for scoring in notes view.
 function noteAt(t){
-  for (const n of targetNotes){ if (t >= n.startT && t <= n.endT) return n.midi; }
-  return null;
+  const i = noteIdxAt(t);
+  return i >= 0 ? targetNotes[i].midi : null;
+}
+
+// Light median + short hold so the live dot reads as a line, not a jitter cloud.
+let pitchHist = [], pitchHold = 0;
+function smoothPitch(raw){
+  if (raw == null){
+    if (pitchHold < 2 && pitchHist.length){ pitchHold++; return pitchHist[pitchHist.length-1]; }
+    pitchHist = []; pitchHold = 0;
+    return null;
+  }
+  pitchHold = 0;
+  pitchHist.push(raw);
+  if (pitchHist.length > 5) pitchHist.shift();
+  const s = [...pitchHist].sort((a,b)=>a-b);
+  return s[Math.floor(s.length/2)];
 }
 
 // ---------- Mic ----------
@@ -745,9 +865,75 @@ document.getElementById('micBtn').addEventListener('click', async ()=>{
   }
 });
 
+// ---------- Latency calibration ----------
+// Scoring and the drawn trail shift back by latSec so your dot sits where
+// you actually sang, not where the delayed audio path put it.
+const latSlider = document.getElementById('latency');
+function setLatency(ms){
+  ms = Math.min(400, Math.max(0, Math.round(ms/10)*10));
+  latSec = ms/1000;
+  latSlider.value = ms;
+  document.getElementById('latMs').textContent = ms + 'ms';
+  store.set('vt_latency', String(ms));
+}
+latSlider.addEventListener('input', (e)=> setLatency(parseInt(e.target.value, 10) || 0));
+
+// One-tap auto: four short pips through the output, timed against their
+// arrival at the mic. Needs the guide audible to the mic (speakers, or
+// headphones loud enough to leak); otherwise the slider is the fallback.
+document.getElementById('latAuto').addEventListener('click', async ()=>{
+  if (!micAnalyser){ setStatus('Enable mic first, then run Auto.'); return; }
+  const c = getCtx();
+  if (c.state === 'suspended') await c.resume();
+  setStatus('Measuring latency: four pips...');
+  const buf = new Float32Array(micAnalyser.fftSize);
+  const t0 = c.currentTime + 0.25;
+  const pips = [];
+  for (let i=0;i<4;i++){
+    const at = t0 + i*0.5;
+    const os = c.createOscillator();
+    const gn = c.createGain();
+    os.frequency.value = 1000;
+    gn.gain.setValueAtTime(0, at);
+    gn.gain.linearRampToValueAtTime(0.6, at + 0.005);
+    gn.gain.setValueAtTime(0.6, at + 0.03);
+    gn.gain.linearRampToValueAtTime(0, at + 0.04);
+    os.connect(gn).connect(c.destination);
+    os.start(at); os.stop(at + 0.06);
+    pips.push(at);
+  }
+  const hits = [];
+  let base = 0.004;
+  await new Promise((res)=>{
+    const iv = setInterval(()=>{
+      micAnalyser.getFloatTimeDomainData(buf);
+      let rms = 0;
+      for (let i=0;i<buf.length;i++) rms += buf[i]*buf[i];
+      rms = Math.sqrt(rms/buf.length);
+      const now = c.currentTime;
+      if (now < t0 - 0.05){
+        base = Math.max(base, rms*1.5); // room noise floor before the pips
+      } else if (rms > Math.max(0.02, base*4)){
+        for (let i=pips.length-1;i>=0;i--){
+          if (now >= pips[i] && (now - pips[i]) < 0.45 && hits[i] == null){ hits[i] = now - pips[i]; break; }
+        }
+      }
+      if (now > t0 + 4*0.5 + 0.2){ clearInterval(iv); res(); }
+    }, 4);
+  });
+  const got = hits.filter(v => v != null).sort((a,b)=>a-b);
+  if (!got.length){
+    setStatus('No pips reached the mic. Raise the volume or set the slider.');
+    return;
+  }
+  const med = got[Math.floor(got.length/2)];
+  setLatency(med*1000);
+  setStatus('Latency set to ' + Math.round(med*1000) + 'ms from ' + got.length + ' pips.');
+});
+
 // ---------- Playback ----------
 document.getElementById('playBtn').addEventListener('click', startPlay);
-document.getElementById('stopBtn').addEventListener('click', stopPlay);
+document.getElementById('stopBtn').addEventListener('click', ()=> stopPlay());
 
 function startPlay(){
   const c = getCtx();
@@ -755,7 +941,7 @@ function startPlay(){
   const playBuffer = backingBuffer || vocalBuffer;
   if (!playBuffer){ setStatus('Load a vocal stem first.'); return; }
 
-  stopPlay(); // clean any prior source
+  stopPlay(false); // clean any prior source, no summary for a restart
 
   playSource = c.createBufferSource();
   playSource.buffer = playBuffer;
@@ -763,7 +949,9 @@ function startPlay(){
   playGain.gain.value = parseFloat(document.getElementById('guideVol').value);
   playSource.connect(playGain).connect(c.destination);
 
-  hitFrames = 0; totalFrames = 0; yourTrail = [];
+  hitFrames = 0; totalFrames = 0; centsSum = 0; yourTrail = [];
+  noteStats = targetNotes.map(()=>({hit:0, total:0}));
+  document.getElementById('summary').hidden = true;
   playStartCtxTime = c.currentTime;
   playSource.start(0);
   playing = true;
@@ -775,22 +963,76 @@ function startPlay(){
   playSource.onended = ()=>{ if(playing) stopPlay(); };
 }
 
-function stopPlay(){
+function stopPlay(showSum){
+  const wasPlaying = playing;
   if (playSource){ try{ playSource.onended=null; playSource.stop(); }catch(e){} playSource.disconnect(); playSource=null; }
   playing = false;
   releaseWakeLock();
   document.getElementById('stopBtn').disabled = true;
   document.getElementById('playBtn').textContent = 'Play';
+  if (showSum !== false && wasPlaying && totalFrames > 40) showSummary();
 }
+
+// ---------- End-of-take summary ----------
+function showSummary(){
+  const pct = totalFrames ? Math.round(100*hitFrames/totalFrames) : 0;
+  document.getElementById('sumScore').textContent = pct + '%';
+  const strip = document.getElementById('sumNotes');
+  strip.innerHTML = '';
+  let green = 0, yellow = 0, red = 0;
+  noteStats.forEach((st)=>{
+    let c = 'rgba(228,228,236,.15)'; // unsung
+    if (st.total > 3){
+      const r = st.hit/st.total;
+      if (r >= 0.8){ green++; c = '#35d07f'; }
+      else if (r >= 0.5){ yellow++; c = '#ffd23f'; }
+      else { red++; c = '#ff5d5d'; }
+    }
+    const i = document.createElement('i');
+    i.style.background = c;
+    strip.appendChild(i);
+  });
+  strip.style.display = noteStats.length > 120 ? 'none' : 'flex';
+  const bias = totalFrames ? Math.round(centsSum/totalFrames) : 0;
+  const biasTxt = bias > 8 ? 'running ' + bias + 'c sharp'
+                : bias < -8 ? 'running ' + (-bias) + 'c flat'
+                : 'centered on pitch';
+  const sub = document.getElementById('sumSub');
+  sub.textContent = '';
+  const l1 = document.createElement('div');
+  l1.textContent = green + ' green / ' + yellow + ' yellow / ' + red + ' red of ' + noteStats.length + ' notes';
+  const l2 = document.createElement('div');
+  l2.textContent = biasTxt;
+  sub.appendChild(l1); sub.appendChild(l2);
+  document.getElementById('summary').hidden = false;
+}
+document.getElementById('sumClose').addEventListener('click', ()=>{ document.getElementById('summary').hidden = true; });
+document.getElementById('sumAgain').addEventListener('click', ()=>{ document.getElementById('summary').hidden = true; startPlay(); });
 
 document.getElementById('guideVol').addEventListener('input', (e)=>{
   if (playGain) playGain.gain.value = parseFloat(e.target.value);
+  store.set('vt_guide', e.target.value);
 });
 
 // ---------- View toggle ----------
-document.getElementById('viewBtn').addEventListener('click', (e)=>{
-  viewMode = (viewMode==='waveform') ? 'notes' : 'waveform';
-  e.target.textContent = 'View: ' + (viewMode==='notes' ? 'Notes' : 'Waveform');
+function setViewMode(mode){
+  viewMode = (mode === 'notes') ? 'notes' : 'waveform';
+  document.getElementById('viewBtn').textContent = 'View: ' + (viewMode==='notes' ? 'Notes' : 'Waveform');
+  store.set('vt_view', viewMode);
+}
+document.getElementById('viewBtn').addEventListener('click', ()=>{
+  setViewMode(viewMode==='waveform' ? 'notes' : 'waveform');
+});
+
+// ---------- Spacebar transport ----------
+document.addEventListener('keydown', (e)=>{
+  if (e.code !== 'Space') return;
+  if (document.body.classList.contains('wizard-active')) return;
+  e.preventDefault();
+  const sum = document.getElementById('summary');
+  if (!sum.hidden) sum.hidden = true;
+  if (playing) stopPlay();
+  else if (!document.getElementById('playBtn').disabled) startPlay();
 });
 
 // ---------- Screen wake lock (keep phone awake during a session) ----------
@@ -901,16 +1143,27 @@ function draw(){
   const tLeft = t - nowX/PX_PER_SEC;
   const tRight = t + (W-nowX)/PX_PER_SEC;
 
+  const singT = t - latSec; // the singer's effective song time after latency compensation
+
   if (viewMode==='notes' && targetNotes.length){
     const lane = Math.abs(midiToY(noteLo) - midiToY(noteLo+1));
     const bh = Math.max(8, lane*0.62);
-    for (const n of targetNotes){
+    for (let i=0;i<targetNotes.length;i++){
+      const n = targetNotes[i];
       if (n.endT < tLeft-0.2 || n.startT > tRight+0.2) continue;
       const x0 = nowX + (n.startT - t)*PX_PER_SEC;
       const x1 = nowX + (n.endT   - t)*PX_PER_SEC;
       const y = midiToY(n.midi) - bh/2;
-      const active = (t >= n.startT && t <= n.endT);
-      g.fillStyle = active ? '#8b9cf7' : '#3d59e0';
+      const active = (singT >= n.startT && singT <= n.endT);
+      let fill = active ? '#8b9cf7' : '#3d59e0';
+      if (playing && !active && n.endT < singT){
+        const st = noteStats[i];
+        if (st && st.total > 3){
+          const r = st.hit/st.total;
+          fill = r >= 0.8 ? 'rgba(53,208,127,.7)' : r >= 0.5 ? 'rgba(255,210,63,.7)' : 'rgba(255,93,93,.7)';
+        }
+      }
+      g.fillStyle = fill;
       roundRect(x0, y, Math.max(2, x1-x0), bh, Math.min(bh/2, 6));
       g.fill();
     }
@@ -937,17 +1190,17 @@ function draw(){
     }
   }
 
-  // --- live pitch ---
+  // --- live pitch (smoothed) ---
   let yourMidi = null;
   if (micAnalyser){
     micAnalyser.getFloatTimeDomainData(micBuf);
     const f = detectPitch(micBuf, micRate, 70, 1000);
-    if (f>0){ yourMidi = freqToMidi(f); }
+    yourMidi = smoothPitch(f>0 ? freqToMidi(f) : null);
   }
 
-  // trail
+  // trail, logged at the singer's effective time so it lines up with the target
   if (playing && yourMidi!=null){
-    yourTrail.push({t, midi:yourMidi});
+    yourTrail.push({t: singT, midi: yourMidi});
   }
   const trailCutoff = t - nowX/PX_PER_SEC;
   while (yourTrail.length && yourTrail[0].t < trailCutoff) yourTrail.shift();
@@ -961,28 +1214,35 @@ function draw(){
   }
   g.stroke();
 
-  // --- readouts + scoring ---
+  // --- readouts + scoring (scored at singT so latency does not read as error) ---
   const noteEl = document.getElementById('noteOut');
   const centsEl = document.getElementById('centsOut');
+  const dotX = playing ? Math.max(20, nowX - latSec*PX_PER_SEC) : nowX;
   if (yourMidi!=null){
     noteEl.textContent = noteName(yourMidi);
-    const tgt = playing ? currentTarget(t) : null;
+    const tgt = playing ? currentTarget(singT) : null;
     if (tgt!=null){
       const cents = Math.round((yourMidi - tgt)*100);
       centsEl.textContent = (cents>0?'+':'') + cents;
       centsEl.style.color = Math.abs(cents)<=50 ? 'var(--good)' : (Math.abs(cents)<=120?'var(--ok)':'var(--bad)');
       const y = midiToY(yourMidi);
       g.fillStyle = Math.abs(cents)<=50?'#35d07f':(Math.abs(cents)<=120?'#ffd23f':'#ff5d5d');
-      g.beginPath(); g.arc(nowX,y,8,0,7); g.fill();
+      g.beginPath(); g.arc(dotX,y,8,0,7); g.fill();
       totalFrames++;
+      centsSum += cents;
       if (Math.abs(cents)<=100) hitFrames++;
+      const ni = noteIdxAt(singT);
+      if (ni >= 0 && noteStats[ni]){
+        noteStats[ni].total++;
+        if (Math.abs(cents)<=100) noteStats[ni].hit++;
+      }
     } else {
       const frac = yourMidi - Math.floor(yourMidi);
       centsEl.textContent = (Math.round((frac-0.0)*100-50)) + '';
       centsEl.style.color = 'var(--dim)';
       const y = midiToY(yourMidi);
       g.fillStyle = '#35d07f';
-      g.beginPath(); g.arc(nowX,y,8,0,7); g.fill();
+      g.beginPath(); g.arc(dotX,y,8,0,7); g.fill();
     }
   } else {
     noteEl.textContent = '--';
@@ -1005,10 +1265,12 @@ function draw(){
   const backGroup = document.getElementById('backGroup');
   const viewBtn = document.getElementById('viewBtn');
   const guideGroup = document.getElementById('guideGroup');
+  const latGroup = document.getElementById('latGroup');
+  const helpBtn = document.getElementById('helpBtn');
   if (!drawer || !stemGroup || !viewBtn) return;
 
   // Remember each node's desktop home so it can be restored exactly.
-  const homes = [stemGroup, backGroup, viewBtn, guideGroup].map(el => ({ el, parent: el.parentNode, next: el.nextSibling }));
+  const homes = [stemGroup, backGroup, viewBtn, guideGroup, latGroup, helpBtn].map(el => ({ el, parent: el.parentNode, next: el.nextSibling }));
   const mq = window.matchMedia('(max-width: 720px)');
 
   function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('open'); }
@@ -1023,6 +1285,8 @@ function draw(){
       slotLoad.appendChild(backGroup);
       slotOptions.appendChild(viewBtn);
       slotOptions.appendChild(guideGroup);
+      slotOptions.appendChild(latGroup);
+      slotOptions.appendChild(helpBtn);
     } else {
       closeDrawer();
       // restore in reverse so each reference node is back in place first
@@ -1053,14 +1317,25 @@ function draw(){
   const micBtn = document.getElementById('micBtn');
   const micHome = { parent: micBtn.parentNode, next: micBtn.nextSibling };
 
-  document.getElementById('wizSlotStem').appendChild(document.getElementById('stemGroup'));
-  document.getElementById('wizSlotBack').appendChild(document.getElementById('backGroup'));
-  document.getElementById('wizSlotGuide').appendChild(document.getElementById('guideGroup'));
-  document.getElementById('wizSlotMic').appendChild(micBtn);
-
   function show(name){
     scenes.forEach(s => { s.hidden = s.dataset.scene !== name; });
   }
+
+  // Pull the real controls into the wizard scenes and take over the screen.
+  // Runs at boot and again when the help chip reopens the wizard.
+  function mount(){
+    if (window.__closeDrawer) window.__closeDrawer();
+    document.getElementById('summary').hidden = true;
+    body.classList.add('wizard-active');
+    overlay.style.display = '';
+    document.getElementById('wizSlotStem').appendChild(document.getElementById('stemGroup'));
+    document.getElementById('wizSlotBack').appendChild(document.getElementById('backGroup'));
+    document.getElementById('wizSlotGuide').appendChild(document.getElementById('guideGroup'));
+    document.getElementById('wizSlotMic').appendChild(micBtn);
+    show('title');
+    resize();
+  }
+  window.__openWizard = mount;
 
   function dismiss(){
     if (!body.classList.contains('wizard-active')) return;
@@ -1091,7 +1366,23 @@ function draw(){
     document.getElementById('wizMicStatus').textContent = 'Mic blocked: ' + msg;
   };
 
-  show('title');
+  mount();
+})();
+
+// ---------- Help chip: reopen the wizard ----------
+document.getElementById('helpBtn').addEventListener('click', ()=>{
+  if (playing) stopPlay(false);
+  window.__openWizard();
+});
+
+// ---------- Restore saved settings ----------
+(function(){
+  const gv = store.get('vt_guide');
+  if (gv != null && gv !== ''){ document.getElementById('guideVol').value = gv; }
+  const vm = store.get('vt_view');
+  if (vm){ setViewMode(vm); }
+  const lm = parseInt(store.get('vt_latency'), 10);
+  setLatency(isNaN(lm) ? 0 : lm);
 })();
 
 resize();
