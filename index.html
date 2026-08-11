@@ -166,23 +166,6 @@
     line-height: 1.55;
   }
   #overlay p.lead { color: var(--text); }
-  /* the steps read as a defined block, set apart from the surrounding prose */
-  #overlay ol {
-    color: var(--text);
-    text-align: left;
-    margin: 24px auto 20px;
-    max-width: 460px;
-    background: var(--panel2);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 20px 24px 20px 44px;
-    font-size: clamp(15px, 2.8vw, 18px);
-    line-height: 1.5;
-  }
-  #overlay ol li { margin: 0 0 14px; padding-left: 4px; }
-  #overlay ol li:last-child { margin-bottom: 0; }
-  #overlay ol li::marker { color: var(--accent); font-weight: 700; }
-  #overlay p.hint { font-size: clamp(13.5px, 2.4vw, 15.5px); margin: 0 0 16px; }
   #overlay .stemnote {
     color: var(--accent);
     font-size: clamp(13.5px, 2.4vw, 15.5px);
@@ -196,6 +179,40 @@
   .hint { font-size: 12px; color: var(--dim); }
   .dot-swatch { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px;}
   .legend { font-size: 12px; color: var(--dim); }
+
+  /* ---------- intro wizard ---------- */
+  body.wizard-active header,
+  body.wizard-active .controlbar,
+  body.wizard-active #rotate { display: none; }
+  #overlay .scene[hidden] { display: none; }
+  .wiz-step {
+    color: var(--accent); font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .14em; margin: 0 0 10px;
+  }
+  .wiz-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 24px; }
+  .wiz-actions button.primary { min-width: 200px; min-height: 48px; font-size: 16px; }
+  button.ghost {
+    background: none; border: none; color: var(--dim);
+    font-size: 13px; text-decoration: underline; text-underline-offset: 3px;
+    min-height: 36px; padding: 6px 10px;
+  }
+  button.ghost:hover:not(:disabled) { background: none; border: none; color: var(--text); }
+  /* real controls moved into a wizard scene */
+  .wiz-slot { margin: 20px auto 0; max-width: 320px; }
+  .wiz-slot .group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin: 0; }
+  .wiz-slot .filebtn { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .wiz-slot .filebtn .name { max-width: none; text-align: center; }
+  .wiz-slot .arrow-hint { display: none; }
+  .wiz-slot button { width: 100%; min-height: 50px; font-size: 15px; }
+  .wiz-slot input[type=range] { width: 100%; height: 36px; }
+  .wiz-slot .cap { text-align: center; }
+  .wiz-demo { display: block; width: min(100%, 320px); margin: 6px auto 14px; }
+  .wiz-legend {
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px;
+    color: var(--text); font-size: clamp(14px, 2.6vw, 16px); margin: 0;
+  }
+  .wiz-legend span { white-space: nowrap; }
+  #wizMicStatus { color: var(--bad); font-size: 13px; min-height: 18px; margin: 10px 0 0; }
 
   /* rotate nudge, portrait phones only */
   #rotate {
@@ -296,7 +313,7 @@
   }
 </style>
 </head>
-<body>
+<body class="wizard-active">
 <header>
   <button class="menu-btn pulse" id="menuBtn" aria-label="Open controls menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -345,16 +362,78 @@
 
   <div id="overlay">
     <div class="card">
-      <h2>Sing along, hit the line.</h2>
-      <p class="lead">A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
-      <ol>
-        <li>Load a <b>vocal stem</b> exported from your session. Any audio file works; WAV gives the cleanest read.</li>
-        <li>Optionally load a <b>backing track</b> to sing over (otherwise the vocal plays as a guide; turn Guide down to test yourself).</li>
-        <li>Tap <b>Enable mic</b>, then <b>Play</b>.</li>
-      </ol>
-      <p class="hint">The blue line is the target melody. Your green dot should ride on top of it.</p>
-      <p class="stemnote">Works best with an isolated vocal. A full mix makes the target line muddy. On a phone, use headphones so the guide does not leak into your mic.</p>
-      <div class="progress" id="prog"><div id="progBar"></div></div>
+
+      <section class="scene" data-scene="title">
+        <h2>Sing along, hit the line.</h2>
+        <p class="lead">A pitch trainer for artists, driven by your own stems. Everything runs on your device; nothing is uploaded.</p>
+        <div class="wiz-actions">
+          <button class="primary" id="wizStart">Start</button>
+          <button class="ghost" id="wizSkip">Skip wizard</button>
+        </div>
+      </section>
+
+      <section class="scene" data-scene="stem" hidden>
+        <p class="wiz-step">Step 1 of 3</p>
+        <h2>Load your vocal stem</h2>
+        <p class="lead">Export the lead vocal from your session and load it here. It becomes the melody line you train against.</p>
+        <div class="wiz-slot" id="wizSlotStem"></div>
+        <div class="progress" id="prog"><div id="progBar"></div></div>
+        <p class="stemnote">Any audio file works; WAV gives the cleanest read. Use an isolated vocal, since a full mix makes the target line muddy. On a phone, wear headphones so the guide does not leak into your mic.</p>
+        <div class="wiz-actions">
+          <button class="primary" id="wizNextStem" disabled>Next</button>
+          <button class="ghost" id="wizSkipStem">Skip wizard</button>
+        </div>
+      </section>
+
+      <section class="scene" data-scene="backing" hidden>
+        <p class="wiz-step">Step 2 of 3</p>
+        <h2>Add a backing track</h2>
+        <p class="lead">Optional. Load an instrumental to sing over. Without one, the vocal stem itself plays as your guide.</p>
+        <div class="wiz-slot" id="wizSlotBack"></div>
+        <div class="wiz-actions">
+          <button class="primary" id="wizNextBack">Next</button>
+        </div>
+      </section>
+
+      <section class="scene" data-scene="guide" hidden>
+        <p class="wiz-step">Step 3 of 3</p>
+        <h2>Set your guide volume</h2>
+        <p class="lead">This is how loud the reference plays in your ears. Keep it up while you learn a part, then pull it down to test yourself.</p>
+        <div class="wiz-slot" id="wizSlotGuide"></div>
+        <div class="wiz-actions">
+          <button class="primary" id="wizNextGuide">Next</button>
+        </div>
+      </section>
+
+      <section class="scene" data-scene="visual" hidden>
+        <h2>The line and the dot</h2>
+        <p class="lead">The blue line is the target melody. Your green dot is your voice; keep it riding on the line.</p>
+        <svg class="wiz-demo" viewBox="0 0 320 96" aria-hidden="true">
+          <path d="M0 64 C 36 64 48 30 84 30 C 112 30 118 56 150 56 C 182 56 190 26 224 26 C 254 26 262 44 320 40" stroke="#3b6ef0" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <line x1="84" y1="4" x2="84" y2="92" stroke="#4f9dff55" stroke-width="2"/>
+          <path d="M20 70 C 40 68 60 36 84 30" stroke="#35d07f" stroke-width="3" fill="none"/>
+          <circle cx="84" cy="30" r="8" fill="#35d07f"/>
+        </svg>
+        <p class="wiz-legend">
+          <span><span class="dot-swatch" style="background:var(--good)"></span>green = in tune</span>
+          <span><span class="dot-swatch" style="background:var(--ok)"></span>yellow = close</span>
+          <span><span class="dot-swatch" style="background:var(--bad)"></span>red = off</span>
+        </p>
+        <div class="wiz-actions">
+          <button class="primary" id="wizNextVisual">Next</button>
+        </div>
+      </section>
+
+      <section class="scene" data-scene="mic" hidden>
+        <h2>Enable your mic</h2>
+        <p class="lead">The trainer listens so it can score your pitch. Your voice is analyzed on your device and never uploaded.</p>
+        <div class="wiz-slot" id="wizSlotMic"></div>
+        <p id="wizMicStatus"></p>
+        <div class="wiz-actions">
+          <button class="ghost" id="wizMicSkip">Skip for now</button>
+        </div>
+      </section>
+
     </div>
   </div>
 </div>
@@ -489,6 +568,7 @@ document.getElementById('vocalFile').addEventListener('change', async (e)=>{
     await extractTarget(vocalBuffer);
     document.getElementById('playBtn').disabled = false;
     setStatus('Target line ready. Enable mic, then Play.');
+    if (window.__wizardStemLoaded) window.__wizardStemLoaded();
   } catch(err){
     setStatus('Could not decode that file: ' + err.message);
   }
@@ -629,8 +709,10 @@ document.getElementById('micBtn').addEventListener('click', async ()=>{
     document.getElementById('micBtn').textContent = 'Mic on';
     document.getElementById('micBtn').disabled = true;
     setStatus('Mic ready.');
+    if (window.__wizardMicGranted) window.__wizardMicGranted();
   } catch(err){
     setStatus('Mic blocked: '+err.message);
+    if (window.__wizardMicError) window.__wizardMicError(err.message);
   }
 });
 
@@ -895,6 +977,8 @@ function draw(){
   window.__closeDrawer = closeDrawer;
 
   function layout(){
+    // while the wizard owns the controls, leave them where the wizard put them
+    if (document.body.classList.contains('wizard-active')) return;
     if (mq.matches){
       slotLoad.appendChild(stemGroup);
       slotLoad.appendChild(backGroup);
@@ -915,7 +999,59 @@ function draw(){
   closeBtn.addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDrawer(); });
   if (mq.addEventListener) mq.addEventListener('change', layout); else mq.addListener(layout);
+  window.__layoutControls = layout;
   layout();
+})();
+
+// ---------- Intro wizard (scene state machine over #overlay) ----------
+// The real controls live inside the scenes: stem loader in step 1, backing in
+// step 2, guide slider in step 3, mic button in the final scene. Dismissing
+// (skip or mic grant) hands the controls back to their normal homes.
+(function(){
+  const overlay = document.getElementById('overlay');
+  const body = document.body;
+  const scenes = Array.from(document.querySelectorAll('#overlay .scene'));
+  const micBtn = document.getElementById('micBtn');
+  const micHome = { parent: micBtn.parentNode, next: micBtn.nextSibling };
+
+  document.getElementById('wizSlotStem').appendChild(document.getElementById('stemGroup'));
+  document.getElementById('wizSlotBack').appendChild(document.getElementById('backGroup'));
+  document.getElementById('wizSlotGuide').appendChild(document.getElementById('guideGroup'));
+  document.getElementById('wizSlotMic').appendChild(micBtn);
+
+  function show(name){
+    scenes.forEach(s => { s.hidden = s.dataset.scene !== name; });
+  }
+
+  function dismiss(){
+    if (!body.classList.contains('wizard-active')) return;
+    body.classList.remove('wizard-active');
+    overlay.style.display = 'none';
+    const ref = (micHome.next && micHome.next.parentNode === micHome.parent) ? micHome.next : null;
+    micHome.parent.insertBefore(micBtn, ref);
+    if (window.__layoutControls) window.__layoutControls();
+  }
+
+  document.getElementById('wizStart').addEventListener('click', ()=> show('stem'));
+  document.getElementById('wizSkip').addEventListener('click', dismiss);
+  document.getElementById('wizSkipStem').addEventListener('click', dismiss);
+  document.getElementById('wizNextStem').addEventListener('click', ()=> show('backing'));
+  document.getElementById('wizNextBack').addEventListener('click', ()=> show('guide'));
+  document.getElementById('wizNextGuide').addEventListener('click', ()=> show('visual'));
+  document.getElementById('wizNextVisual').addEventListener('click', ()=> show('mic'));
+  document.getElementById('wizMicSkip').addEventListener('click', dismiss);
+
+  window.__wizardStemLoaded = function(){
+    const btn = document.getElementById('wizNextStem');
+    btn.disabled = false;
+    btn.classList.add('pulse');
+  };
+  window.__wizardMicGranted = dismiss;
+  window.__wizardMicError = function(msg){
+    document.getElementById('wizMicStatus').textContent = 'Mic blocked: ' + msg;
+  };
+
+  show('title');
 })();
 
 resize();
